@@ -1,0 +1,80 @@
+/* claudewatch dashboard layout */
+
+#dashboard {
+    layout: vertical;
+    height: 1fr;
+    padding: 0 1;
+}
+
+#top-row {
+    height: auto;
+    max-height: 12;
+    min-height: 8;
+}
+
+#today-usage {
+    width: 1fr;
+    min-width: 30;
+    border: solid $primary;
+    padding: 1;
+    margin: 0 1 0 0;
+}
+
+#quota-status {
+    width: 1fr;
+    min-width: 30;
+    border: solid $secondary;
+    padding: 1;
+}
+
+#timeline {
+    height: auto;
+    max-height: 10;
+    min-height: 6;
+    border: solid $accent;
+    padding: 1;
+    margin: 1 0;
+}
+
+#bottom-row {
+    height: 1fr;
+    min-height: 10;
+}
+
+#session-list {
+    width: 1fr;
+    border: solid $primary;
+    padding: 0;
+    margin: 0 1 0 0;
+}
+
+#event-log {
+    width: 1fr;
+    border: solid $secondary;
+    padding: 1;
+}
+
+/* Widget title styling */
+.widget-title {
+    text-style: bold;
+    color: $text;
+    margin-bottom: 1;
+}
+
+.stat-label {
+    color: $text-muted;
+}
+
+.stat-value {
+    text-style: bold;
+}
+
+.cost-value {
+    color: $warning;
+    text-style: bold;
+}
+
+.quota-warning {
+    color: $error;
+    text-style: bold;
+}

@@ -1,0 +1,215 @@
+"""Main textual TUI application for claudewatch."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+from textual import on, work
+from textual.app import App, ComposeResult
+from textual.binding import Binding
+from textual.containers import Container, Horizontal, Vertical
+from textual.message import Message
+from textual.widgets import Footer, Header
+
+from claudewatch.config import USAGE_JSONL, QUOTA_EVENTS_JSONL
+from claudewatch.models import UsageRecord, QuotaEvent
+from claudewatch.storage.jsonl import read_usage, read_quota_events
+from claudewatch.tui.widgets.today_usage import TodayUsage
+from claudewatch.tui.widgets.timeline import Timeline
+from claudewatch.tui.widgets.session_list import SessionList
+from claudewatch.tui.widgets.quota_status import QuotaStatus
+from claudewatch.tui.widgets.event_log import EventLog
+
+
+class NewUsageEvent(Message):
+    """Posted when a new usage record is detected via file watcher."""
+
+    def __init__(self, record: UsageRecord) -> None:
+        self.record = record
+        super().__init__()
+
+
+class NewQuotaEvent(Message):
+    """Posted when a new quota event is detected."""
+
+    def __init__(self, event: QuotaEvent) -> None:
+        self.event = event
+        super().__init__()
+
+
+class ClaudeWatchApp(App):
+    """Real-time Claude Code token usage dashboard."""
+
+    TITLE = "claudewatch"
+    SUB_TITLE = "token usage dashboard"
+    CSS_PATH = "dashboard.tcss"
+
+    BINDINGS = [
+        Binding("q", "quit", "Quit"),
+        Binding("r", "refresh", "Refresh"),
+        Binding("1", "focus_panel('today')", "Today", show=False),
+        Binding("2", "focus_panel('quota')", "Quota", show=False),
+        Binding("3", "focus_panel('sessions')", "Sessions", show=False),
+        Binding("4", "focus_panel('events')", "Events", show=False),
+    ]
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._usage_offset: int = 0
+        self._quota_offset: int = 0
+        self._observer = None
+        self._shutting_down = False
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        with Container(id="dashboard"):
+            with Horizontal(id="top-row"):
+                yield TodayUsage(id="today-usage")
+                yield QuotaStatus(id="quota-status")
+            yield Timeline(id="timeline")
+            with Horizontal(id="bottom-row"):
+                yield SessionList(id="session-list")
+                yield EventLog(id="event-log")
+        yield Footer()
+
+    def on_mount(self) -> None:
+        """Load initial data and start file watcher."""
+        self.load_data()
+        self.start_file_watcher()
+
+    def load_data(self) -> None:
+        """Load all existing records from storage."""
+        records = read_usage()
+        events = read_quota_events()
+
+        self.query_one(TodayUsage).update_records(records)
+        self.query_one(Timeline).update_records(records)
+        self.query_one(SessionList).update_records(records)
+        self.query_one(QuotaStatus).update_data(records, events)
+        self.query_one(EventLog).add_event("Loaded", f"{len(records)} usage records")
+        if events:
+            self.query_one(EventLog).add_event("Loaded", f"{len(events)} quota events")
+
+        # Track file offsets for incremental reads
+        if USAGE_JSONL.exists():
+            self._usage_offset = USAGE_JSONL.stat().st_size
+        if QUOTA_EVENTS_JSONL.exists():
+            self._quota_offset = QUOTA_EVENTS_JSONL.stat().st_size
+
+    @work(thread=True)
+    def start_file_watcher(self) -> None:
+        """Watch usage.jsonl for new records using watchdog."""
+        try:
+            from watchdog.observers import Observer
+            from watchdog.events import FileSystemEventHandler, FileModifiedEvent
+        except ImportError:
+            self.post_message(
+                NewUsageEvent(
+                    UsageRecord(
+                        timestamp="2000-01-01T00:00:00Z",
+                        session_id="error",
+                        model="error",
+                        project="watchdog not installed",
+                    )
+                )
+            )
+            return
+
+        app = self
+
+        class UsageFileHandler(FileSystemEventHandler):
+            def on_modified(self, event: FileModifiedEvent) -> None:
+                if not isinstance(event, FileModifiedEvent):
+                    return
+                path = Path(event.src_path)
+                if path.name == "usage.jsonl":
+                    self._handle_usage_update(path)
+                elif path.name == "quota-events.jsonl":
+                    self._handle_quota_update(path)
+
+            def _handle_usage_update(self, path: Path) -> None:
+                from claudewatch.storage.jsonl import iter_usage_from_offset
+
+                for record, new_offset in iter_usage_from_offset(path, app._usage_offset):
+                    app._usage_offset = new_offset
+                    app.post_message(NewUsageEvent(record))
+
+            def _handle_quota_update(self, path: Path) -> None:
+                from claudewatch.storage.jsonl import tail_read_new_lines
+
+                lines, new_offset = tail_read_new_lines(path, app._quota_offset)
+                app._quota_offset = new_offset
+                for line in lines:
+                    try:
+                        event = QuotaEvent.model_validate_json(line)
+                        app.post_message(NewQuotaEvent(event))
+                    except Exception:
+                        continue
+
+        watch_dir = USAGE_JSONL.parent
+        watch_dir.mkdir(parents=True, exist_ok=True)
+
+        # Touch files so watchdog can watch them
+        USAGE_JSONL.touch(exist_ok=True)
+        QUOTA_EVENTS_JSONL.touch(exist_ok=True)
+
+        handler = UsageFileHandler()
+        observer = Observer()
+        observer.daemon = True
+        observer.schedule(handler, str(watch_dir), recursive=False)
+        observer.start()
+        self._observer = observer
+
+        # Poll until app is shutting down
+        import time
+        while not self._shutting_down:
+            time.sleep(0.5)
+
+        observer.stop()
+        observer.join(timeout=2)
+
+    @on(NewUsageEvent)
+    def handle_new_usage(self, event: NewUsageEvent) -> None:
+        """Handle a new usage record from the file watcher."""
+        record = event.record
+        records = read_usage()
+        self.query_one(TodayUsage).update_records(records)
+        self.query_one(Timeline).update_records(records)
+        self.query_one(SessionList).update_records(records)
+        self.query_one(EventLog).add_event(
+            "New",
+            f"{record.model} | {record.output_tokens:,} out | {record.project}",
+        )
+
+    @on(NewQuotaEvent)
+    def handle_new_quota(self, event: NewQuotaEvent) -> None:
+        """Handle a new quota event."""
+        records = read_usage()
+        events = read_quota_events()
+        self.query_one(QuotaStatus).update_data(records, events)
+        self.query_one(EventLog).add_event(
+            "QUOTA", event.event.event_type, style="bold red"
+        )
+
+    def on_unmount(self) -> None:
+        """Clean up file watcher on app shutdown."""
+        self._shutting_down = True
+        if self._observer:
+            self._observer.stop()
+
+    def action_refresh(self) -> None:
+        """Manual refresh of all data."""
+        self.load_data()
+        self.query_one(EventLog).add_event("Refresh", "Manual refresh")
+
+    def action_focus_panel(self, panel: str) -> None:
+        """Focus a specific panel."""
+        panel_map = {
+            "today": "today-usage",
+            "quota": "quota-status",
+            "sessions": "session-list",
+            "events": "event-log",
+        }
+        widget_id = panel_map.get(panel)
+        if widget_id:
+            self.query_one(f"#{widget_id}").focus()
