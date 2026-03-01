@@ -7,13 +7,11 @@ Performance target: <50ms, zero LLM calls.
 from __future__ import annotations
 
 import json
-import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 from claudewatch.config import (
-    HOOK_ACTIVE_ENV,
     QUOTA_PATTERNS,
     TAIL_CHUNK_SIZE,
     project_from_cwd,
@@ -116,10 +114,6 @@ def check_quota_patterns(entry: dict) -> str | None:
 
 def run_hook() -> None:
     """Main hook entrypoint. Reads stdin JSON, processes transcript, writes storage."""
-    # Recursion guard
-    if os.environ.get(HOOK_ACTIVE_ENV):
-        return
-
     try:
         raw = sys.stdin.read()
         hook_input = HookInput.model_validate_json(raw)

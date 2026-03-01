@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -91,8 +92,8 @@ def install() -> None:
         "# Managed by: claudewatch install / claudewatch uninstall\n"
         "set -euo pipefail\n"
         "\n"
-        "export CLAUDEWATCH_HOOK_ACTIVE=1\n"
-        "exec python3 -m claudewatch.collector.hook\n"
+        # Resolve python at install time so hooks work without conda env active
+        f'exec "{sys.executable}" -m claudewatch.collector.hook\n'
     )
     HOOK_SCRIPT.write_text(hook_content)
     HOOK_SCRIPT.chmod(0o755)

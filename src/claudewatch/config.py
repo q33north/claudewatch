@@ -55,9 +55,6 @@ QUOTA_PATTERNS: list[dict[str, str]] = [
 # Tail-read settings
 TAIL_CHUNK_SIZE = 8192  # 8KB chunks for backwards reading
 
-# Hook recursion guard
-HOOK_ACTIVE_ENV = "CLAUDEWATCH_HOOK_ACTIVE"
-
 
 def ensure_dirs() -> None:
     """Create storage directories if they don't exist."""
