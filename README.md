@@ -2,8 +2,6 @@
 
 Real-time TUI dashboard for monitoring Claude Code token usage, costs, and quota status.
 
-Built by [Q33 North](https://github.com/q33north) as part of the [AI for Bioinformaticians](https://substack.com) blog series.
-
 ## What it does
 
 - **Live monitoring** - watches your Claude Code usage in real-time via a Stop hook
