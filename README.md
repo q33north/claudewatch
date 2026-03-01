@@ -18,13 +18,20 @@ Real-time TUI dashboard for monitoring Claude Code token usage, costs, and quota
 git clone https://github.com/q33north/claudewatch.git
 cd claudewatch
 
-# Using conda/mamba
-mamba env create -f environment.yml
+# Using conda (recommended if you use miniforge/mambaforge)
+conda env create -f environment.yml
 conda activate claudewatch
 
-# Or pip
+# Or using pip directly
 pip install -e ".[dev]"
 ```
+
+> **Note:** If you have both `conda` (miniforge) and `micromamba` (homebrew) installed,
+> they use different env directories. `mamba env create` may create the env under
+> micromamba's prefix (e.g. `/opt/homebrew/Cellar/micromamba/.../envs/claudewatch`)
+> which `conda activate` won't find. Either use `conda env create` so the env lands
+> in your miniforge `envs/` directory, or activate by full path:
+> `conda activate /path/to/envs/claudewatch`.
 
 ## Quick start
 

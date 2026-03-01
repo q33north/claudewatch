@@ -29,8 +29,8 @@
 
 #timeline {
     height: auto;
-    max-height: 10;
-    min-height: 6;
+    max-height: 14;
+    min-height: 10;
     border: solid $accent;
     padding: 1;
     margin: 1 0;
