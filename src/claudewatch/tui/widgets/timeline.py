@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 
 from rich.text import Text
-from rich.table import Table
 
 from textual.reactive import reactive
 from textual.widgets import Static
@@ -125,39 +123,6 @@ class Timeline(Static):
         total_out = sum(r.output_tokens for r in recent)
         return total_in / span_hours, total_out / span_hours
 
-    def _session_context_sparklines(self, top_n: int = 3) -> list[tuple[str, str, str]]:
-        """Generate context growth sparklines for the most recent sessions.
-
-        Groups records by session_id, takes the top_n most recent sessions,
-        and plots input_tokens values as sparklines (these grow as context accumulates).
-
-        Returns (label, sparkline_str, peak_str) tuples.
-        """
-        by_session: dict[str, list[UsageRecord]] = defaultdict(list)
-        for r in self._records:
-            by_session[r.session_id].append(r)
-
-        # Sort sessions by most recent record, take top_n
-        session_order = sorted(
-            by_session.keys(),
-            key=lambda sid: max(r.timestamp for r in by_session[sid]),
-            reverse=True,
-        )
-
-        results = []
-        for sid in session_order[:top_n]:
-            recs = sorted(by_session[sid], key=lambda r: r.timestamp)
-            values = [r.input_tokens for r in recs]
-            if len(values) < 2:
-                continue
-            label = next(
-                (r.slug for r in recs if r.slug), sid[:8]
-            )
-            spark = sparkline(values, width=SPARK_WIDTH_RIGHT)
-            peak = format_tokens(max(values))
-            results.append((label, spark, peak))
-        return results
-
     def _build_axis(self, width: int, count: int, label_fn, interval: int, force_last: bool = False) -> str:
         """Build an x-axis string with labels at regular intervals, aligned to width."""
         chars = [" "] * width
@@ -170,7 +135,7 @@ class Timeline(Static):
                         chars[pos + j] = ch
         return "".join(chars)
 
-    def render(self) -> Table:
+    def render(self) -> Text:
         if not self._records:
             return Text.from_markup("[bold]Timeline[/]\n\nNo data yet")
 
@@ -205,8 +170,7 @@ class Timeline(Static):
             label_fn=lambda i: (d_start + timedelta(days=i)).strftime("%m/%d"),
         )
 
-        # Left column: 24h + 30d sparklines
-        left = (
+        lines = (
             f"[bold]24h[/]"
             f"     [dim]burn rate (3h):[/] "
             f"[green]{format_tokens(int(in_rate))}[/]"
@@ -222,28 +186,4 @@ class Timeline(Static):
             f"   [dim]{d_axis}[/]"
         )
 
-        # Right column: context growth sparklines
-        ctx_sparks = self._session_context_sparklines(top_n=5)
-        if ctx_sparks:
-            right_lines = [
-                "[bold]Context growth[/]",
-                "[dim]input tokens/turn (rising = filling window)[/]",
-                "",
-            ]
-            for label, spark, peak in ctx_sparks:
-                display_label = label[:12].ljust(12)
-                right_lines.append(f"{display_label} {spark}")
-                right_lines.append(f"             [dim]peak {peak}[/]")
-            right = "\n".join(right_lines)
-        else:
-            right = "[bold]Context growth[/]\n\n[dim]not enough session data yet[/]"
-
-        # Two-column layout using Rich Table
-        table = Table.grid(expand=True, padding=(0, 2))
-        table.add_column(ratio=3)
-        table.add_column(ratio=2)
-        table.add_row(
-            Text.from_markup(left),
-            Text.from_markup(right),
-        )
-        return table
+        return Text.from_markup(lines)

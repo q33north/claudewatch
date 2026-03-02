@@ -1,55 +1,65 @@
-/* claudewatch dashboard layout */
+/* claudewatch dashboard layout - two-column */
 
 #dashboard {
-    layout: vertical;
+    layout: horizontal;
     height: 1fr;
     padding: 0 1;
 }
 
-#top-row {
-    height: auto;
-    max-height: 16;
-    min-height: 8;
-}
-
-#today-usage {
+/* Left column: usage-focused */
+#left-col {
     width: 1fr;
-    min-width: 30;
-    border: solid $primary;
-    padding: 1;
     margin: 0 1 0 0;
 }
 
-#context-health {
+/* Right column: context + events */
+#right-col {
     width: 1fr;
-    min-width: 30;
-    border: solid $secondary;
+}
+
+#today-usage {
+    height: auto;
+    max-height: 14;
+    border: solid $primary;
     padding: 1;
+    margin: 0 0 1 0;
 }
 
 #timeline {
     height: auto;
-    max-height: 20;
-    min-height: 10;
+    max-height: 14;
     border: solid $accent;
     padding: 1;
-    margin: 1 0;
-}
-
-#bottom-row {
-    height: 1fr;
-    min-height: 10;
+    margin: 0 0 1 0;
 }
 
 #session-list {
-    width: 1fr;
+    height: 1fr;
+    min-height: 8;
     border: solid $primary;
     padding: 0;
-    margin: 0 1 0 0;
+}
+
+#context-health {
+    height: auto;
+    max-height: 20;
+    border: solid $secondary;
+    padding: 1;
+    margin: 0 0 1 0;
+    overflow-y: auto;
+}
+
+#context-growth {
+    height: auto;
+    max-height: 16;
+    border: solid $accent;
+    padding: 1;
+    margin: 0 0 1 0;
 }
 
 #event-log {
-    width: 1fr;
+    height: 1fr;
+    min-height: 8;
     border: solid $secondary;
     padding: 1;
 }

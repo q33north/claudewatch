@@ -14,8 +14,10 @@ from claudewatch.config import (
 )
 from claudewatch.models import QuotaEvent, UsageRecord
 from claudewatch.quota.detector import QuotaTracker
+from claudewatch.tui.widgets.timeline import format_tokens
 
 CACHE_BAR_WIDTH = 10
+GAUGE_BAR_WIDTH = 10
 
 
 def _cache_bar(ratio: float) -> str:
@@ -63,6 +65,36 @@ class ContextHealth(Static):
         self._records = records
         self._tracker.events = events
         self._data_version += 1
+
+    def _window_gauge(self) -> str:
+        """Render a 5h rolling-window usage gauge with bar + percentage."""
+        usage = self._tracker.estimate_window_usage(self._records)
+        total = usage["total"]
+        ceiling = self._tracker.estimate_ceiling()
+        # Use total ceiling (input + output) if available
+        input_ceil = ceiling.get("input_ceiling")
+        output_ceil = ceiling.get("output_ceiling")
+
+        if input_ceil is not None and output_ceil is not None:
+            est_ceiling = input_ceil + output_ceil
+            if est_ceiling > 0:
+                ratio = min(total / est_ceiling, 1.0)
+                filled = int(ratio * GAUGE_BAR_WIDTH)
+                bar = "█" * filled + "░" * (GAUGE_BAR_WIDTH - filled)
+                pct = f"{ratio * 100:.0f}%"
+                if ratio < 0.60:
+                    color = "green"
+                elif ratio < 0.85:
+                    color = "yellow"
+                else:
+                    color = "red"
+                return (
+                    f"[{color}]{bar}[/] {pct}"
+                    f"  [dim]({format_tokens(total)} / {format_tokens(est_ceiling)} est. ceiling)[/]"
+                )
+
+        # No ceiling data yet
+        return f"{format_tokens(total)} tokens  [dim](no ceiling estimate yet)[/]"
 
     def _today_cache_ratio(self) -> float:
         """Aggregate cache hit ratio for today's records."""
@@ -118,6 +150,10 @@ class ContextHealth(Static):
         lines.append("")
         ratio = self._today_cache_ratio()
         lines.append(f"  cache ratio: {_cache_bar(ratio)}")
+
+        # 5h rolling window usage gauge
+        window_h = self._tracker.window_hours
+        lines.append(f"  {window_h:.0f}h window: {self._window_gauge()}")
 
         # Autocompact events
         compacts = find_autocompact_files()

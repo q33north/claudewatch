@@ -136,11 +136,12 @@ The hook is designed to be fast (<50ms) and never makes any API calls.
 ```
 +----------------------------+----------------------------+
 |       Today's Usage        |      Context Health        |
-|  tokens by type + model    |  memory file sizes         |
-|  cost estimate             |  cache ratio, quota info   |
+|  tokens by type + model    |  memory sizes, cache ratio |
+|  cost estimate             |  5h window gauge, quota    |
 +----------------------------+----------------------------+
-|              Usage Timeline (sparklines)                |
-|  24h hourly / 30d daily / per-session context growth    |
+|       Timeline             |      Context Growth        |
+|  24h / 30d sparklines      |  per-session sparklines    |
+|  burn rate                 |  with y-axis labels        |
 +----------------------------+----------------------------+
 |       Session List         |       Event Log            |
 |  DataTable, sortable       |  live scrolling feed       |
@@ -181,6 +182,10 @@ Claude Code project on the machine, not just one session.
 - **Autocompacts** - counts of `pre-compact-*.md` files across your projects. These are
   snapshots Claude Code saves before auto-compacting memory files that exceed the 200-line
   limit. Frequent autocompacts mean your memory is growing fast.
+- **5h window gauge** - rolling-window usage bar showing current token usage vs estimated
+  ceiling. The ceiling is estimated from your most recent quota hit. Color-coded: green
+  (< 60%), yellow (60-85%), red (> 85%). If no quota hits have been recorded yet, shows
+  the raw token total instead.
 - **Quota info** - if you've hit a rate limit or quota cap, shows the event type and how
   long ago. Only appears when there's something to show.
 
@@ -188,7 +193,7 @@ Claude Code project on the machine, not just one session.
 > claude.ai (the web/desktop chat). The "X% used" meter in claude.ai is a subscription
 > allocation gauge that's tracked server-side and not exposed to local tooling.
 
-### Timeline (middle)
+### Timeline (middle left)
 
 Sparkline charts showing usage over time. Each character is one time bucket (hour or day),
 and bar height is proportional to the peak within that section.
@@ -197,11 +202,16 @@ and bar height is proportional to the peak within that section.
   tokens (includes cache reads), yellow = output tokens.
 - **30d** - daily buckets over the last month with date labels.
 - **Burn rate** - tokens per hour averaged over the last 3 hours of activity.
-- **Context growth** - per-session sparklines showing how `input_tokens` increases across
-  turns within a session. In a Claude Code session, input tokens grow as the conversation
-  gets longer (more context to send each turn). A steadily rising line is normal. A line
-  that plateaus near 200K means you're approaching the context ceiling and Claude Code may
-  start auto-compacting. Sessions are labeled by slug (if available) or session ID.
+
+### Context Growth (middle right)
+
+Per-session sparklines showing how `input_tokens` increases across turns within a session.
+In a Claude Code session, input tokens grow as the conversation gets longer (more context
+to send each turn). A steadily rising line is normal. A line that plateaus near 200K means
+you're approaching the context ceiling and Claude Code may start auto-compacting.
+
+Each sparkline has a y-axis showing 0 and peak value for scale. Sessions are labeled by
+slug (if available) or session ID.
 
 ### Session List (bottom left)
 
@@ -211,8 +221,10 @@ Columns: session name, project, model, message count, total tokens, duration, an
 
 ### Event Log (bottom right)
 
-Live feed of events: new usage records arriving, quota hits, manual refreshes. Useful
-for confirming the Stop hook is firing and data is flowing.
+Live feed of events with color-coded tags. On startup, shows a summary of today's sessions,
+cost, model mix, biggest session, cache ratio, and window proximity warnings. During use,
+logs new usage records, session switches, model changes, output token spikes (> 5K), quota
+hits, and manual refreshes.
 
 ## Development
 

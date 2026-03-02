@@ -15,6 +15,12 @@ TAG_STYLES: dict[str, str] = {
     "COMPACT": "yellow",
     "WARN": "bold yellow",
     "ERROR": "bold red",
+    "Session": "magenta",
+    "Cost": "yellow",
+    "Spike": "bold yellow",
+    "Cache": "green",
+    "Window": "red",
+    "Model": "cyan",
 }
 
 
