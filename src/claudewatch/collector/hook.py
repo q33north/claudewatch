@@ -92,6 +92,7 @@ def extract_usage_record(entry: dict, cwd: str) -> UsageRecord:
         project=project_from_cwd(cwd),
         service_tier=usage.get("service_tier", "standard"),
         speed=usage.get("speed", "standard"),
+        slug=entry.get("slug", ""),
     )
 
 

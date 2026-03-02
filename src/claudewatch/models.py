@@ -21,6 +21,7 @@ class UsageRecord(BaseModel):
     service_tier: str = "standard"
     speed: str = "standard"
     user_id: str = "default"
+    slug: str = ""
 
     @property
     def total_tokens(self) -> int:
@@ -43,6 +44,14 @@ class UsageRecord(BaseModel):
             + self.cache_read_input_tokens * pricing["cache_read"]
             + self.cache_creation_input_tokens * pricing["cache_create"]
         ) / 1_000_000
+
+    @property
+    def cache_hit_ratio(self) -> float:
+        """Ratio of cache reads to total cache tokens (0.0 if no cache activity)."""
+        total_cache = self.cache_read_input_tokens + self.cache_creation_input_tokens
+        if total_cache == 0:
+            return 0.0
+        return self.cache_read_input_tokens / total_cache
 
 
 class QuotaEvent(BaseModel):
@@ -69,6 +78,7 @@ class SessionSummary(BaseModel):
     total_cache_read: int = 0
     total_cache_create: int = 0
     message_count: int = 0
+    slug: str = ""
 
     @property
     def total_tokens(self) -> int:
@@ -82,6 +92,14 @@ class SessionSummary(BaseModel):
     @property
     def duration_minutes(self) -> float:
         return (self.end_time - self.start_time).total_seconds() / 60
+
+    @property
+    def cache_hit_ratio(self) -> float:
+        """Ratio of cache reads to total cache tokens (0.0 if no cache activity)."""
+        total_cache = self.total_cache_read + self.total_cache_create
+        if total_cache == 0:
+            return 0.0
+        return self.total_cache_read / total_cache
 
 
 class HookInput(BaseModel):

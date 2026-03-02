@@ -17,7 +17,7 @@ from claudewatch.storage.jsonl import read_usage, read_quota_events
 from claudewatch.tui.widgets.today_usage import TodayUsage
 from claudewatch.tui.widgets.timeline import Timeline
 from claudewatch.tui.widgets.session_list import SessionList
-from claudewatch.tui.widgets.quota_status import QuotaStatus
+from claudewatch.tui.widgets.context_health import ContextHealth
 from claudewatch.tui.widgets.event_log import EventLog
 
 
@@ -48,7 +48,7 @@ class ClaudeWatchApp(App):
         Binding("q", "quit", "Quit"),
         Binding("r", "refresh", "Refresh"),
         Binding("1", "focus_panel('today')", "Today", show=False),
-        Binding("2", "focus_panel('quota')", "Quota", show=False),
+        Binding("2", "focus_panel('context')", "Context", show=False),
         Binding("3", "focus_panel('sessions')", "Sessions", show=False),
         Binding("4", "focus_panel('events')", "Events", show=False),
     ]
@@ -65,7 +65,7 @@ class ClaudeWatchApp(App):
         with Container(id="dashboard"):
             with Horizontal(id="top-row"):
                 yield TodayUsage(id="today-usage")
-                yield QuotaStatus(id="quota-status")
+                yield ContextHealth(id="context-health")
             yield Timeline(id="timeline")
             with Horizontal(id="bottom-row"):
                 yield SessionList(id="session-list")
@@ -85,7 +85,7 @@ class ClaudeWatchApp(App):
         self.query_one(TodayUsage).update_records(records)
         self.query_one(Timeline).update_records(records)
         self.query_one(SessionList).update_records(records)
-        self.query_one(QuotaStatus).update_data(records, events)
+        self.query_one(ContextHealth).update_data(records, events)
         self.query_one(EventLog).add_event("Loaded", f"{len(records)} usage records")
         if events:
             self.query_one(EventLog).add_event("Loaded", f"{len(events)} quota events")
@@ -173,9 +173,11 @@ class ClaudeWatchApp(App):
         """Handle a new usage record from the file watcher."""
         record = event.record
         records = read_usage()
+        events = read_quota_events()
         self.query_one(TodayUsage).update_records(records)
         self.query_one(Timeline).update_records(records)
         self.query_one(SessionList).update_records(records)
+        self.query_one(ContextHealth).update_data(records, events)
         self.query_one(EventLog).add_event(
             "New",
             f"{record.model} | {record.output_tokens:,} out | {record.project}",
@@ -186,7 +188,7 @@ class ClaudeWatchApp(App):
         """Handle a new quota event."""
         records = read_usage()
         events = read_quota_events()
-        self.query_one(QuotaStatus).update_data(records, events)
+        self.query_one(ContextHealth).update_data(records, events)
         self.query_one(EventLog).add_event(
             "QUOTA", event.event.event_type, style="bold red"
         )
@@ -206,7 +208,7 @@ class ClaudeWatchApp(App):
         """Focus a specific panel."""
         panel_map = {
             "today": "today-usage",
-            "quota": "quota-status",
+            "context": "context-health",
             "sessions": "session-list",
             "events": "event-log",
         }

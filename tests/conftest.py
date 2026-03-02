@@ -24,6 +24,7 @@ def sample_usage_record() -> UsageRecord:
         project="Q33North",
         service_tier="standard",
         speed="standard",
+        slug="test-cool-slug",
     )
 
 
@@ -36,6 +37,7 @@ def sample_assistant_entry() -> dict:
         "userType": "external",
         "cwd": "/home/pabsju/Q33North",
         "sessionId": "test-session-001",
+        "slug": "test-cool-slug",
         "version": "2.1.63",
         "type": "assistant",
         "timestamp": "2026-02-28T12:00:00.000Z",

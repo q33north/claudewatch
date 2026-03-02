@@ -60,3 +60,43 @@ def test_hook_input():
     hi = HookInput.model_validate_json(raw)
     assert hi.session_id == "s1"
     assert hi.stop_hook_active is False
+
+
+def test_usage_record_cache_hit_ratio(sample_usage_record):
+    # cache_read=5000, cache_create=200 -> 5000/5200
+    ratio = sample_usage_record.cache_hit_ratio
+    assert abs(ratio - 5000 / 5200) < 0.001
+
+
+def test_usage_record_cache_hit_ratio_zero():
+    record = UsageRecord(
+        timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        session_id="s1",
+    )
+    assert record.cache_hit_ratio == 0.0
+
+
+def test_session_summary_cache_hit_ratio():
+    summary = SessionSummary(
+        session_id="s1",
+        start_time=datetime(2026, 2, 28, 10, 0, tzinfo=timezone.utc),
+        end_time=datetime(2026, 2, 28, 10, 30, tzinfo=timezone.utc),
+        total_cache_read=8000,
+        total_cache_create=2000,
+        message_count=5,
+    )
+    assert abs(summary.cache_hit_ratio - 0.8) < 0.001
+
+
+def test_slug_field_roundtrip(sample_usage_record):
+    json_str = sample_usage_record.model_dump_json()
+    restored = UsageRecord.model_validate_json(json_str)
+    assert restored.slug == "test-cool-slug"
+
+
+def test_slug_default():
+    record = UsageRecord(
+        timestamp=datetime(2026, 1, 1, tzinfo=timezone.utc),
+        session_id="s1",
+    )
+    assert record.slug == ""

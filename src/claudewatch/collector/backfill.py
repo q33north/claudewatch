@@ -76,6 +76,7 @@ def extract_records_from_session(
                     project=project,
                     service_tier=usage.get("service_tier", "standard"),
                     speed=usage.get("speed", "standard"),
+                    slug=entry.get("slug", ""),
                 )
             )
     return records

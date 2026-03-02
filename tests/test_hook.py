@@ -94,3 +94,23 @@ def test_check_quota_patterns_none():
         }
     }
     assert check_quota_patterns(entry) is None
+
+
+def test_extract_usage_record_slug():
+    entry = {
+        "type": "assistant",
+        "timestamp": "2026-02-28T12:00:00.000Z",
+        "sessionId": "test-session-001",
+        "slug": "test-cool-slug",
+        "message": {
+            "model": "claude-opus-4-6",
+            "usage": {
+                "input_tokens": 1000,
+                "output_tokens": 500,
+                "cache_read_input_tokens": 0,
+                "cache_creation_input_tokens": 0,
+            },
+        },
+    }
+    record = extract_usage_record(entry, "/home/user/project")
+    assert record.slug == "test-cool-slug"

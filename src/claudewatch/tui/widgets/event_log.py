@@ -6,6 +6,17 @@ from datetime import datetime, timezone
 
 from textual.widgets import RichLog
 
+# Color scheme for event tags
+TAG_STYLES: dict[str, str] = {
+    "New": "green",
+    "Loaded": "cyan",
+    "Refresh": "blue",
+    "QUOTA": "bold red",
+    "COMPACT": "yellow",
+    "WARN": "bold yellow",
+    "ERROR": "bold red",
+}
+
 
 class EventLog(RichLog):
     """Live scrolling log of usage events and system messages."""
@@ -28,6 +39,12 @@ class EventLog(RichLog):
     ) -> None:
         """Add a timestamped event to the log."""
         now = datetime.now(timezone.utc).strftime("%H:%M:%S")
-        style_open = f"[{style}]" if style else ""
-        style_close = f"[/{style.split()[0]}]" if style else ""
-        self.write(f"  {now} [{tag:>8}] {style_open}{message}{style_close}")
+        # Use explicit style if provided, otherwise look up by tag
+        if not style:
+            style = TAG_STYLES.get(tag, "")
+        tag_style = TAG_STYLES.get(tag, "dim")
+        tag_str = f"[{tag_style}]{tag:>8}[/{tag_style.split()[0]}]"
+        if style:
+            self.write(f"  [dim]{now}[/] {tag_str} [{style}]{message}[/{style.split()[0]}]")
+        else:
+            self.write(f"  [dim]{now}[/] {tag_str} {message}")

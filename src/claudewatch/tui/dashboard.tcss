@@ -8,7 +8,7 @@
 
 #top-row {
     height: auto;
-    max-height: 12;
+    max-height: 16;
     min-height: 8;
 }
 
@@ -20,7 +20,7 @@
     margin: 0 1 0 0;
 }
 
-#quota-status {
+#context-health {
     width: 1fr;
     min-width: 30;
     border: solid $secondary;
@@ -29,7 +29,7 @@
 
 #timeline {
     height: auto;
-    max-height: 14;
+    max-height: 20;
     min-height: 10;
     border: solid $accent;
     padding: 1;

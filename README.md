@@ -1,15 +1,15 @@
 # claudewatch
 
-Real-time TUI dashboard for monitoring Claude Code token usage, costs, and quota status.
+Real-time TUI dashboard for monitoring Claude Code token usage, costs, and context health.
 
 ## What it does
 
 - **Live monitoring** - watches your Claude Code usage in real-time via a Stop hook
 - **Token tracking** - input, output, cache read/write tokens broken down by model and project
 - **Cost estimates** - per-session and daily cost estimates using current API pricing
-- **Quota awareness** - detects rate limits and quota hits, estimates your usage ceiling
+- **Context health** - cache efficiency, memory file sizes, autocompact history, quota events
 - **Historical backfill** - imports all your past Claude Code session data
-- **Sparkline timeline** - hourly and daily usage trends at a glance
+- **Sparkline timeline** - hourly/daily usage trends + per-session context growth curves
 
 ## Install
 
@@ -92,7 +92,6 @@ Claude Code maintains a layered memory system:
 | `~/.claude/CLAUDE.md` | Global | User preferences, workflow instructions |
 | `<project>/CLAUDE.md` | Project | Project-specific instructions |
 | `~/.claude/projects/<project>/memory/MEMORY.md` | Project | Auto-managed notes that persist across sessions |
-| `~/.claude/memory/YYYY-MM-DD.md` | Global | Daily session summaries, auto-compacted |
 
 These files are loaded into the context window at session start, consuming
 tokens. Claude Code's `/context` slash command shows the breakdown — context
@@ -136,12 +135,12 @@ The hook is designed to be fast (<50ms) and never makes any API calls.
 
 ```
 +----------------------------+----------------------------+
-|       Today's Usage        |       Quota Status         |
-|  tokens by type + model    |  window tracking, last hit |
-|  cost estimate             |  ceiling estimate          |
+|       Today's Usage        |      Context Health        |
+|  tokens by type + model    |  memory file sizes         |
+|  cost estimate             |  cache ratio, quota info   |
 +----------------------------+----------------------------+
 |              Usage Timeline (sparklines)                |
-|              hourly today / daily last 30d              |
+|  24h hourly / 30d daily / per-session context growth    |
 +----------------------------+----------------------------+
 |       Session List         |       Event Log            |
 |  DataTable, sortable       |  live scrolling feed       |
@@ -149,6 +148,71 @@ The hook is designed to be fast (<50ms) and never makes any API calls.
 ```
 
 **Keybindings:** `q` quit, `r` refresh, `1-4` focus panels
+
+## Understanding the panels
+
+### Today's Usage (top left)
+
+Token totals for today, broken down by type (input, output, cache read, cache write)
+and by model. The API cost estimate uses current Anthropic pricing and reflects what
+you'd pay if you were on the API directly -- not what you pay for a Claude Code
+subscription, which is flat-rate.
+
+### Context Health (top right)
+
+A machine-wide snapshot of what's eating your context window and how efficiently caching
+is working. The header says "(all projects)" because this panel aggregates across every
+Claude Code project on the machine, not just one session.
+
+- **Latest session** - the most recent session from today's data, showing session slug (or
+  truncated ID), project name, and model. This tells you which session the cache ratio
+  and today's numbers are most influenced by.
+- **Memory file sizes** - grouped by project. Lists every CLAUDE.md and MEMORY.md that
+  Claude Code loads into context, with estimated token counts. Each project shows its
+  subtotal, plus a grand total at the bottom. These files get loaded on every turn, so
+  bloated memory files burn tokens fast. If your total is high, consider trimming.
+- **Cache ratio** - the percentage of cache tokens that are *reads* (reused from a previous
+  turn) vs *writes* (freshly created). Higher is better. 90%+ means Claude is efficiently
+  reusing your system prompt and conversation prefix from cache rather than re-tokenizing
+  it each turn. Cache reads cost ~10x less than cache creation and ~10x less than regular
+  input tokens. The ratio drops when you switch projects (different cached prefix), when
+  memory files change (invalidates cache), or on the first turn of a session. Computed
+  over today's records only.
+- **Autocompacts** - counts of `pre-compact-*.md` files across your projects. These are
+  snapshots Claude Code saves before auto-compacting memory files that exceed the 200-line
+  limit. Frequent autocompacts mean your memory is growing fast.
+- **Quota info** - if you've hit a rate limit or quota cap, shows the event type and how
+  long ago. Only appears when there's something to show.
+
+> **Note:** claudewatch only monitors Claude Code (the CLI tool). It cannot see usage from
+> claude.ai (the web/desktop chat). The "X% used" meter in claude.ai is a subscription
+> allocation gauge that's tracked server-side and not exposed to local tooling.
+
+### Timeline (middle)
+
+Sparkline charts showing usage over time. Each character is one time bucket (hour or day),
+and bar height is proportional to the peak within that section.
+
+- **24h** - rolling hourly buckets with hour-of-day labels on the x-axis. Green = input
+  tokens (includes cache reads), yellow = output tokens.
+- **30d** - daily buckets over the last month with date labels.
+- **Burn rate** - tokens per hour averaged over the last 3 hours of activity.
+- **Context growth** - per-session sparklines showing how `input_tokens` increases across
+  turns within a session. In a Claude Code session, input tokens grow as the conversation
+  gets longer (more context to send each turn). A steadily rising line is normal. A line
+  that plateaus near 200K means you're approaching the context ceiling and Claude Code may
+  start auto-compacting. Sessions are labeled by slug (if available) or session ID.
+
+### Session List (bottom left)
+
+A table of all sessions, most recent first. Shows the session slug (a short human-readable
+name Claude Code assigns to sessions) or a truncated session UUID if no slug is available.
+Columns: session name, project, model, message count, total tokens, duration, and time.
+
+### Event Log (bottom right)
+
+Live feed of events: new usage records arriving, quota hits, manual refreshes. Useful
+for confirming the Stop hook is firing and data is flowing.
 
 ## Development
 
