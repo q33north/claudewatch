@@ -118,14 +118,15 @@ def _is_duplicate(record: UsageRecord) -> bool:
 
     During agentic loops, multiple PostToolUse hooks may fire for the same
     assistant message (e.g., when Claude requests 3 tool calls at once).
-    We dedup by comparing (session_id, timestamp, output_tokens).
+    We dedup by comparing (session_id, input_tokens, output_tokens) - timestamps
+    may differ slightly between rapid hook firings for the same response.
     """
     last = read_last_usage()
     if last is None:
         return False
     return (
         last.session_id == record.session_id
-        and last.timestamp == record.timestamp
+        and last.input_tokens == record.input_tokens
         and last.output_tokens == record.output_tokens
     )
 

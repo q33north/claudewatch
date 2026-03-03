@@ -147,7 +147,7 @@ def test_read_last_usage_empty(tmp_path):
 
 
 def test_is_duplicate_true(tmp_path, monkeypatch):
-    """Duplicate detection should catch same (session_id, timestamp, output_tokens)."""
+    """Duplicate detection should catch same (session_id, input_tokens, output_tokens)."""
     path = tmp_path / "usage.jsonl"
     record = UsageRecord(
         timestamp=datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc),
@@ -164,6 +164,34 @@ def test_is_duplicate_true(tmp_path, monkeypatch):
         lambda: read_last_usage(path=path),
     )
     assert _is_duplicate(record) is True
+
+
+def test_is_duplicate_true_different_timestamp(tmp_path, monkeypatch):
+    """Same session/input/output but different timestamp should still be a duplicate.
+
+    PostToolUse hooks fire rapidly with slightly different timestamps for the
+    same assistant response.
+    """
+    path = tmp_path / "usage.jsonl"
+    r1 = UsageRecord(
+        timestamp=datetime(2026, 3, 1, 12, 0, 0, tzinfo=timezone.utc),
+        session_id="s1",
+        input_tokens=1000,
+        output_tokens=500,
+    )
+    r2 = UsageRecord(
+        timestamp=datetime(2026, 3, 1, 12, 0, 2, tzinfo=timezone.utc),
+        session_id="s1",
+        input_tokens=1000,
+        output_tokens=500,
+    )
+    append_usage(r1, path=path)
+
+    monkeypatch.setattr(
+        "claudewatch.collector.hook.read_last_usage",
+        lambda: read_last_usage(path=path),
+    )
+    assert _is_duplicate(r2) is True
 
 
 def test_is_duplicate_false_different_output(tmp_path, monkeypatch):

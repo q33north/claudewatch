@@ -49,8 +49,8 @@ class EventLog(RichLog):
         if not style:
             style = TAG_STYLES.get(tag, "")
         tag_style = TAG_STYLES.get(tag, "dim")
-        tag_str = f"[{tag_style}]{tag:>8}[/{tag_style.split()[0]}]"
+        tag_str = f"[{tag_style}]{tag:>8}[/]"
         if style:
-            self.write(f"  [dim]{now}[/] {tag_str} [{style}]{message}[/{style.split()[0]}]")
+            self.write(f"  [dim]{now}[/] {tag_str} [{style}]{message}[/]")
         else:
             self.write(f"  [dim]{now}[/] {tag_str} {message}")
