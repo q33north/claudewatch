@@ -77,7 +77,8 @@ class ContextHealth(Static):
 
         if input_ceil is not None and output_ceil is not None:
             est_ceiling = input_ceil + output_ceil
-            if est_ceiling > 0:
+            # Ceiling must be at least 10K tokens to be plausible
+            if est_ceiling > 10_000:
                 ratio = min(total / est_ceiling, 1.0)
                 filled = int(ratio * GAUGE_BAR_WIDTH)
                 bar = "█" * filled + "░" * (GAUGE_BAR_WIDTH - filled)

@@ -17,44 +17,43 @@
     width: 1fr;
 }
 
+/* Row 1: matching heights */
 #today-usage {
-    height: auto;
-    max-height: 14;
+    height: 20;
     border: solid $primary;
     padding: 1;
     margin: 0 0 1 0;
-}
-
-#timeline {
-    height: auto;
-    max-height: 14;
-    border: solid $accent;
-    padding: 1;
-    margin: 0 0 1 0;
-}
-
-#session-list {
-    height: 1fr;
-    min-height: 8;
-    border: solid $primary;
-    padding: 0;
 }
 
 #context-health {
-    height: auto;
-    max-height: 20;
+    height: 20;
     border: solid $secondary;
     padding: 1;
     margin: 0 0 1 0;
     overflow-y: auto;
 }
 
-#context-growth {
-    height: auto;
-    max-height: 16;
+/* Row 2: matching heights */
+#timeline {
+    height: 14;
     border: solid $accent;
     padding: 1;
     margin: 0 0 1 0;
+}
+
+#context-growth {
+    height: 14;
+    border: solid $accent;
+    padding: 1;
+    margin: 0 0 1 0;
+}
+
+/* Row 3: fill remaining space */
+#session-list {
+    height: 1fr;
+    min-height: 8;
+    border: solid $primary;
+    padding: 0;
 }
 
 #event-log {

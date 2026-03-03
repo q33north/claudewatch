@@ -178,7 +178,7 @@ class ClaudeWatchApp(App):
             output_ceil = ceiling.get("output_ceiling")
             if input_ceil is not None and output_ceil is not None:
                 est_ceiling = input_ceil + output_ceil
-                if est_ceiling > 0:
+                if est_ceiling > 10_000:
                     pct = usage["total"] / est_ceiling
                     if pct >= 0.85:
                         log.add_event(

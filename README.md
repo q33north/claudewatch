@@ -112,6 +112,21 @@ exposed via CLI or hook metadata**.
 | Skills/plugin token overhead | No | Internal to Claude Code |
 | Memory file token costs | Approximated | File size / ~4 chars per token |
 
+## How Claude Code rate limiting works
+
+Claude Code (Max subscription) uses a **rolling 5-hour window** for rate limiting,
+not fixed time blocks. At any given moment, Anthropic measures your total token usage
+over the previous 5 hours. There's no "reset" at a specific clock time - tokens
+continuously age out as the window slides forward.
+
+For example: if you burn through a lot of tokens between 6:00-7:00am, those tokens
+start dropping off between 11:00-12:00pm. This means your available capacity gradually
+recovers rather than resetting all at once.
+
+The **5h window gauge** in the Context Health panel tracks this: it shows your current
+rolling-window usage against an estimated ceiling derived from your most recent quota
+hit. The ceiling is approximate since Anthropic doesn't expose exact limits.
+
 ## How claudewatch works
 
 ```
