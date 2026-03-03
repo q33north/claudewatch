@@ -9,11 +9,11 @@ can see them happening.
 
 This tool provides:
 
-- **Live monitoring** - watches your Claude Code usage in real-time via a Stop hook
+- **Live monitoring** - watches your Claude Code usage in real-time via a hooks
 - **Token tracking** - input, output, cache read/write tokens broken down by model and project
 - **Cost estimates** - per-session and daily cost estimates using current API pricing
 - **Context health** - cache efficiency, memory file sizes, autocompact history, quota events
-- **Historical backfill** - imports all your past Claude Code session data
+- **Historical backfill** - imports all past Claude Code session data
 - **Sparkline timeline** - hourly/daily usage trends + per-session context growth curves
 
 ## Install
@@ -35,7 +35,7 @@ pip install -e ".[dev]"
 ## Quick start
 
 ```bash
-# Install the Stop hook into Claude Code
+# Install the Stop + PostToolUse hooks into Claude Code
 claudewatch install
 
 # Backfill historical data (optional but recommended)
@@ -51,7 +51,7 @@ claudewatch watch
 |---------|-------------|
 | `claudewatch watch` | Launch the live TUI dashboard |
 | `claudewatch backfill` | Import historical session data |
-| `claudewatch install` | Install the Stop hook into Claude Code |
+| `claudewatch install` | Install the Stop + PostToolUse hooks into Claude Code |
 | `claudewatch summary` | Print today's usage summary to terminal |
 
 ## How Claude Code stores data
@@ -79,8 +79,9 @@ breakdowns:
 }
 ```
 
-This is the primary data source for claudewatch. A Claude Code stop [hook](https://code.claude.com/docs/en/hooks) tail-reads the
-active transcript after each response to extract these numbers.
+This is the primary data source for claudewatch. Two Claude Code [hooks](https://code.claude.com/docs/en/hooks) -- a
+**Stop** hook (fires at session end) and a **PostToolUse** hook (fires after each
+tool call) -- tail-read the active transcript to extract these numbers.
 
 ### Memory and context files
 
@@ -131,19 +132,22 @@ hit. The ceiling is approximate since Anthropic doesn't expose exact limits.
 ```
 Claude Code response
        |
-  [Stop hook fires]
+  [PostToolUse hook fires]  ──or──  [Stop hook fires]
        |
-  hook.py: tail-read transcript -> extract usage -> append to usage.jsonl
+  hook.py: tail-read transcript -> extract usage -> dedup -> append to usage.jsonl
        |
   TUI: watchdog detects file change -> parse new line -> update widgets
 ```
 
-1. A **Stop hook** fires after every Claude Code response
-2. It tail-reads the session transcript to extract the usage block (input/output/cache tokens, model, etc.)
-3. Appends a single line to `~/.claude/claudewatch/usage.jsonl`
-4. The TUI uses **watchdog** (FSEvents on macOS, inotify on Linux) to detect the new line and update all widgets in real-time
+1. Two hooks fire during Claude Code usage:
+   - **PostToolUse** fires after each tool call, giving live updates during agentic loops
+   - **Stop** fires when a session ends, capturing the final state
+2. Both run the same logic: tail-read the session transcript, extract the usage block (input/output/cache tokens, model, etc.)
+3. A dedup check prevents double-counting when multiple PostToolUse hooks fire for the same assistant message (e.g. parallel tool calls)
+4. Appends a single line to `~/.claude/claudewatch/usage.jsonl`
+5. The TUI uses **watchdog** (FSEvents on macOS, inotify on Linux) to detect the new line and update all widgets in real-time
 
-The hook is designed to be fast (<50ms) and never makes any API calls.
+Both hooks are designed to be fast (<50ms) and never make any API calls.
 
 ## Dashboard layout
 
