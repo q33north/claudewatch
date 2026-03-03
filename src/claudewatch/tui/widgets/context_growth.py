@@ -64,7 +64,7 @@ class ContextGrowth(Static):
     def render(self) -> Text:
         lines = [
             "[bold]Context Growth[/]",
-            "[dim]context window size/turn (rising = filling up)[/]",
+            "[dim]total tokens sent per turn (input + cache)[/]",
             "",
         ]
 

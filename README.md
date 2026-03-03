@@ -230,15 +230,43 @@ helps you see whether cost is driven by long conversations (input) or heavy gene
 
 ### Context Growth (middle right)
 
-Per-session sparklines showing how `input_tokens` increases across turns within a session.
-In a Claude Code session, input tokens grow as the conversation gets longer (more context
-to send each turn). A steadily rising line is normal. A line that plateaus near 200K means
-you're approaching the context ceiling and Claude Code may start auto-compacting.
+Per-session sparklines showing the total tokens sent to the API on each turn
+(input + cache_read + cache_create). Each turn, Claude Code sends the full
+conversation prefix to the API. Most of this is typically cache_read (reused
+cheaply from prior turns), but the total still reflects the growing size of
+your conversation. A steadily rising line is normal. When the underlying
+context window approaches 200K tokens, Claude Code auto-compacts.
 
-Each line represents one of the most recent sessions (up to 5). The y-axis runs from 0 to the session's 
-peak context size. Sessions with only a single turn are excluded. Sessions are labeled by
-slug (if available)-- a short human-readable name that Claude Code auto-generates for each session 
-(like "bright-noodling-karp")-- or session ID.
+Note: this is "tokens billed per turn," not "context window fill level."
+A turn showing 160K doesn't mean 160K of context is used. It means 160K
+tokens were sent to the API, most of which were cache reads. Claude Code's
+`/context` command shows actual window fill, but that data isn't available
+to external tools.
+
+Each line represents one of the most recent sessions (up to 5). The y-axis
+runs from 0 to the session's peak value. Sessions with only a single turn
+are excluded. Sessions are labeled by their slug (if available), a short
+human-readable name that Claude Code auto-generates for each session (like
+"bright-noodling-karp"), or a truncated session ID.
+
+### Reading Context Growth and Cache Ratio together
+
+The Context Growth sparkline shows how many tokens are sent per turn. The
+Cache Ratio (in Context Health) shows how much of that is cheap. A session
+sending 160K tokens/turn with a 97% cache ratio costs roughly the same as
+sending 5K tokens without caching. Cache reads are billed at ~10x less than
+regular input tokens (e.g. $1.50/M vs $15/M for Opus).
+
+This is why cache efficiency matters so much in long sessions. Without caching,
+every turn at 160K tokens would be enormously expensive. With 97% cache hits,
+you're only paying full price for ~5K tokens per turn while the other 155K
+ride the cache at a 90% discount.
+
+Things that hurt your cache ratio (and your wallet):
+- Switching projects mid-session (different cached prefix)
+- Editing CLAUDE.md or MEMORY.md (invalidates the cache)
+- First turn of a new session (nothing cached yet)
+- Auto-compaction (conversation gets rewritten)
 
 ### Session List (bottom left)
 
