@@ -103,9 +103,11 @@ class SessionSummary(BaseModel):
 
 
 class HookInput(BaseModel):
-    """JSON payload received on stdin by the Stop hook."""
+    """JSON payload received on stdin by Stop and PostToolUse hooks."""
 
     session_id: str
     transcript_path: str
     cwd: str = ""
     stop_hook_active: bool = False
+    hook_event_name: str = ""
+    tool_name: str = ""

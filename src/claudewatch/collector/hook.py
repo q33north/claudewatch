@@ -1,6 +1,6 @@
-"""Stop hook logic: tail-read transcript, extract usage, append to storage.
+"""Hook logic: tail-read transcript, extract usage, append to storage.
 
-This runs on every Claude Code response via an async Stop hook.
+Runs on both Stop and PostToolUse hooks for live monitoring.
 Performance target: <50ms, zero LLM calls.
 """
 
@@ -17,7 +17,7 @@ from claudewatch.config import (
     project_from_cwd,
 )
 from claudewatch.models import HookInput, QuotaEvent, UsageRecord
-from claudewatch.storage.jsonl import append_quota_event, append_usage
+from claudewatch.storage.jsonl import append_quota_event, append_usage, read_last_usage
 
 
 def tail_read_last_assistant(transcript_path: str) -> dict | None:
@@ -113,6 +113,23 @@ def check_quota_patterns(entry: dict) -> str | None:
     return None
 
 
+def _is_duplicate(record: UsageRecord) -> bool:
+    """Check if this record is a duplicate of the last recorded entry.
+
+    During agentic loops, multiple PostToolUse hooks may fire for the same
+    assistant message (e.g., when Claude requests 3 tool calls at once).
+    We dedup by comparing (session_id, timestamp, output_tokens).
+    """
+    last = read_last_usage()
+    if last is None:
+        return False
+    return (
+        last.session_id == record.session_id
+        and last.timestamp == record.timestamp
+        and last.output_tokens == record.output_tokens
+    )
+
+
 def run_hook() -> None:
     """Main hook entrypoint. Reads stdin JSON, processes transcript, writes storage."""
     try:
@@ -131,9 +148,14 @@ def run_hook() -> None:
 
     cwd = hook_input.cwd or entry.get("cwd", "")
     record = extract_usage_record(entry, cwd)
+
+    # Dedup: skip if we already recorded this exact entry
+    if _is_duplicate(record):
+        return
+
     append_usage(record)
 
-    # Check for quota patterns
+    # Check for quota patterns (only worth doing on Stop, but harmless either way)
     quota_type = check_quota_patterns(entry)
     if quota_type:
         event = QuotaEvent(

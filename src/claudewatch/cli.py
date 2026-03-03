@@ -17,6 +17,7 @@ from claudewatch.config import (
     CLAUDEWATCH_DIR,
     HOOKS_DIR,
     HOOK_SCRIPT,
+    POSTTOOL_HOOK_SCRIPT,
     SETTINGS_JSON,
     USAGE_JSONL,
     ensure_dirs,
@@ -79,43 +80,33 @@ def backfill(
     console.print(f"[green]Done![/] Imported {count:,} new usage records to {USAGE_JSONL}")
 
 
-@app.command()
-def install() -> None:
-    """Install the claudewatch Stop hook into ~/.claude/hooks/ and register it in settings."""
-    ensure_dirs()
-
-    # Write hook script to ~/.claude/hooks/
-    HOOKS_DIR.mkdir(parents=True, exist_ok=True)
+def _write_hook_script(path, description: str) -> str:
+    """Write a hook shell script and return its path as a string."""
     hook_content = (
         "#!/usr/bin/env bash\n"
-        "# claudewatch Stop hook - extracts usage from Claude Code transcripts\n"
+        f"# claudewatch {description} - extracts usage from Claude Code transcripts\n"
         "# Managed by: claudewatch install / claudewatch uninstall\n"
         "set -euo pipefail\n"
         "\n"
         # Resolve python at install time so hooks work without conda env active
         f'exec "{sys.executable}" -m claudewatch.collector.hook\n'
     )
-    HOOK_SCRIPT.write_text(hook_content)
-    HOOK_SCRIPT.chmod(0o755)
-    hook_command = str(HOOK_SCRIPT)
-    console.print(f"[green]Wrote hook script[/] -> {HOOK_SCRIPT}")
+    path.write_text(hook_content)
+    path.chmod(0o755)
+    return str(path)
 
-    # Read existing settings
-    settings = _read_settings()
 
-    # Add/update Stop hook
+def _register_hook(settings: dict, event_name: str, hook_command: str) -> bool:
+    """Register a hook in settings if not already present. Returns True if added."""
     hooks = settings.setdefault("hooks", {})
-    stop_hooks = hooks.setdefault("Stop", [])
+    event_hooks = hooks.setdefault(event_name, [])
 
-    # Check if already installed
-    for hook_group in stop_hooks:
+    for hook_group in event_hooks:
         for hook in hook_group.get("hooks", []):
             if "claudewatch" in hook.get("command", ""):
-                console.print("[yellow]claudewatch hook already registered in settings.json![/]")
-                return
+                return False
 
-    # Add our hook
-    stop_hooks.append(
+    event_hooks.append(
         {
             "hooks": [
                 {
@@ -126,9 +117,42 @@ def install() -> None:
             ]
         }
     )
+    return True
+
+
+@app.command()
+def install() -> None:
+    """Install claudewatch hooks (Stop + PostToolUse) for live monitoring."""
+    ensure_dirs()
+    HOOKS_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Write hook scripts
+    stop_cmd = _write_hook_script(HOOK_SCRIPT, "Stop hook")
+    console.print(f"[green]Wrote hook script[/] -> {HOOK_SCRIPT}")
+
+    posttool_cmd = _write_hook_script(POSTTOOL_HOOK_SCRIPT, "PostToolUse hook")
+    console.print(f"[green]Wrote hook script[/] -> {POSTTOOL_HOOK_SCRIPT}")
+
+    # Read existing settings and register hooks
+    settings = _read_settings()
+    added_stop = _register_hook(settings, "Stop", stop_cmd)
+    added_posttool = _register_hook(settings, "PostToolUse", posttool_cmd)
+
+    if not added_stop and not added_posttool:
+        console.print("[yellow]claudewatch hooks already registered in settings.json![/]")
+        return
 
     SETTINGS_JSON.write_text(json.dumps(settings, indent=4) + "\n")
-    console.print(f"[green]Registered Stop hook[/] in {SETTINGS_JSON}")
+
+    if added_stop:
+        console.print(f"[green]Registered Stop hook[/] in {SETTINGS_JSON}")
+    else:
+        console.print("[dim]Stop hook already registered[/]")
+
+    if added_posttool:
+        console.print(f"[green]Registered PostToolUse hook[/] in {SETTINGS_JSON}")
+    else:
+        console.print("[dim]PostToolUse hook already registered[/]")
 
     # Dry-run validation
     console.print("\n[dim]Validating hook...[/]")
@@ -151,32 +175,35 @@ def install() -> None:
 
 @app.command()
 def uninstall() -> None:
-    """Remove the claudewatch Stop hook from settings and delete the hook script."""
+    """Remove all claudewatch hooks from settings and delete hook scripts."""
     # Remove from settings.json
     settings = _read_settings()
+    removed_any = False
     if settings:
         hooks = settings.get("hooks", {})
-        stop_hooks = hooks.get("Stop", [])
-        original_len = len(stop_hooks)
-        hooks["Stop"] = [
-            group for group in stop_hooks
-            if not any("claudewatch" in h.get("command", "") for h in group.get("hooks", []))
-        ]
-        if not hooks["Stop"]:
-            del hooks["Stop"]
+        for event_name in ["Stop", "PostToolUse"]:
+            event_hooks = hooks.get(event_name, [])
+            original_len = len(event_hooks)
+            hooks[event_name] = [
+                group for group in event_hooks
+                if not any("claudewatch" in h.get("command", "") for h in group.get("hooks", []))
+            ]
+            if not hooks[event_name]:
+                del hooks[event_name]
+            if len(hooks.get(event_name, [])) < original_len:
+                console.print(f"[green]Removed {event_name} hook[/] from {SETTINGS_JSON}")
+                removed_any = True
 
-        if len(hooks.get("Stop", [])) < original_len:
+        if removed_any:
             SETTINGS_JSON.write_text(json.dumps(settings, indent=4) + "\n")
-            console.print(f"[green]Removed Stop hook[/] from {SETTINGS_JSON}")
         else:
-            console.print("[dim]No claudewatch hook found in settings.json[/]")
+            console.print("[dim]No claudewatch hooks found in settings.json[/]")
 
-    # Remove hook script
-    if HOOK_SCRIPT.exists():
-        HOOK_SCRIPT.unlink()
-        console.print(f"[green]Deleted[/] {HOOK_SCRIPT}")
-    else:
-        console.print(f"[dim]No hook script at {HOOK_SCRIPT}[/]")
+    # Remove hook scripts
+    for script in [HOOK_SCRIPT, POSTTOOL_HOOK_SCRIPT]:
+        if script.exists():
+            script.unlink()
+            console.print(f"[green]Deleted[/] {script}")
 
     console.print("\n[dim]Usage data at ~/.claude/claudewatch/ was not removed.[/]")
 

@@ -11,6 +11,7 @@ USAGE_JSONL = CLAUDEWATCH_DIR / "usage.jsonl"
 QUOTA_EVENTS_JSONL = CLAUDEWATCH_DIR / "quota-events.jsonl"
 HOOKS_DIR = CLAUDE_DIR / "hooks"
 HOOK_SCRIPT = HOOKS_DIR / "claudewatch-stop.sh"
+POSTTOOL_HOOK_SCRIPT = HOOKS_DIR / "claudewatch-posttool.sh"
 SETTINGS_JSON = CLAUDE_DIR / "settings.json"
 PROJECTS_DIR = CLAUDE_DIR / "projects"
 

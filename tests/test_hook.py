@@ -1,13 +1,17 @@
-"""Tests for the Stop hook collector logic."""
+"""Tests for the Stop and PostToolUse hook collector logic."""
 
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from claudewatch.collector.hook import (
     tail_read_last_assistant,
     extract_usage_record,
     check_quota_patterns,
+    _is_duplicate,
 )
+from claudewatch.models import UsageRecord
+from claudewatch.storage.jsonl import append_usage, read_last_usage
 
 
 def test_tail_read_finds_assistant(sample_transcript):
@@ -114,3 +118,102 @@ def test_extract_usage_record_slug():
     }
     record = extract_usage_record(entry, "/home/user/project")
     assert record.slug == "test-cool-slug"
+
+
+def test_read_last_usage(tmp_path):
+    """read_last_usage should return the most recently appended record."""
+    path = tmp_path / "usage.jsonl"
+    r1 = UsageRecord(
+        timestamp=datetime(2026, 3, 1, 10, 0, tzinfo=timezone.utc),
+        session_id="s1",
+        output_tokens=100,
+    )
+    r2 = UsageRecord(
+        timestamp=datetime(2026, 3, 1, 10, 5, tzinfo=timezone.utc),
+        session_id="s1",
+        output_tokens=200,
+    )
+    append_usage(r1, path=path)
+    append_usage(r2, path=path)
+    last = read_last_usage(path=path)
+    assert last is not None
+    assert last.output_tokens == 200
+
+
+def test_read_last_usage_empty(tmp_path):
+    path = tmp_path / "usage.jsonl"
+    path.touch()
+    assert read_last_usage(path=path) is None
+
+
+def test_is_duplicate_true(tmp_path, monkeypatch):
+    """Duplicate detection should catch same (session_id, timestamp, output_tokens)."""
+    path = tmp_path / "usage.jsonl"
+    record = UsageRecord(
+        timestamp=datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc),
+        session_id="s1",
+        model="claude-opus-4-6",
+        input_tokens=1000,
+        output_tokens=500,
+    )
+    append_usage(record, path=path)
+
+    # Monkey-patch read_last_usage to use our tmp file
+    monkeypatch.setattr(
+        "claudewatch.collector.hook.read_last_usage",
+        lambda: read_last_usage(path=path),
+    )
+    assert _is_duplicate(record) is True
+
+
+def test_is_duplicate_false_different_output(tmp_path, monkeypatch):
+    """Different output_tokens means different API call, not a duplicate."""
+    path = tmp_path / "usage.jsonl"
+    r1 = UsageRecord(
+        timestamp=datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc),
+        session_id="s1",
+        output_tokens=500,
+    )
+    r2 = UsageRecord(
+        timestamp=datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc),
+        session_id="s1",
+        output_tokens=800,
+    )
+    append_usage(r1, path=path)
+
+    monkeypatch.setattr(
+        "claudewatch.collector.hook.read_last_usage",
+        lambda: read_last_usage(path=path),
+    )
+    assert _is_duplicate(r2) is False
+
+
+def test_is_duplicate_false_empty(tmp_path, monkeypatch):
+    """No previous records means nothing to duplicate."""
+    path = tmp_path / "usage.jsonl"
+    path.touch()
+    monkeypatch.setattr(
+        "claudewatch.collector.hook.read_last_usage",
+        lambda: read_last_usage(path=path),
+    )
+    record = UsageRecord(
+        timestamp=datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc),
+        session_id="s1",
+        output_tokens=500,
+    )
+    assert _is_duplicate(record) is False
+
+
+def test_hook_input_accepts_posttool_fields():
+    """HookInput should accept PostToolUse-specific fields."""
+    from claudewatch.models import HookInput
+    raw = json.dumps({
+        "session_id": "s1",
+        "transcript_path": "/tmp/t.jsonl",
+        "cwd": "/home/user",
+        "hook_event_name": "PostToolUse",
+        "tool_name": "Bash",
+    })
+    hi = HookInput.model_validate_json(raw)
+    assert hi.hook_event_name == "PostToolUse"
+    assert hi.tool_name == "Bash"

@@ -62,6 +62,32 @@ def read_quota_events(path: Path = QUOTA_EVENTS_JSONL) -> list[QuotaEvent]:
     return events
 
 
+def read_last_usage(path: Path = USAGE_JSONL) -> UsageRecord | None:
+    """Read the last usage record from the JSONL file (for dedup).
+
+    Reads backwards from end of file to find the last complete line.
+    """
+    if not path.exists():
+        return None
+    size = path.stat().st_size
+    if size == 0:
+        return None
+    with open(path, "rb") as f:
+        # Read last 4KB - more than enough for one record
+        read_size = min(4096, size)
+        f.seek(size - read_size)
+        data = f.read()
+    lines = data.decode("utf-8", errors="replace").splitlines()
+    for line in reversed(lines):
+        line = line.strip()
+        if line:
+            try:
+                return UsageRecord.model_validate_json(line)
+            except Exception:
+                continue
+    return None
+
+
 def tail_read_new_lines(path: Path, offset: int) -> tuple[list[str], int]:
     """Read new lines from a file starting at the given byte offset.
 
