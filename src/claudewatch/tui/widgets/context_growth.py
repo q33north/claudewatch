@@ -47,7 +47,12 @@ class ContextGrowth(Static):
         results = []
         for sid in session_order[:top_n]:
             recs = sorted(by_session[sid], key=lambda r: r.timestamp)
-            values = [r.input_tokens for r in recs]
+            # Total context sent per turn = input + all cache tokens
+            # This is the actual context window size that grows toward 200K
+            values = [
+                r.input_tokens + r.cache_read_input_tokens + r.cache_creation_input_tokens
+                for r in recs
+            ]
             if len(values) < 2:
                 continue
             label = next((r.slug for r in recs if r.slug), sid[:8])
@@ -59,7 +64,7 @@ class ContextGrowth(Static):
     def render(self) -> Text:
         lines = [
             "[bold]Context Growth[/]",
-            "[dim]input tokens/turn (rising = filling window)[/]",
+            "[dim]context window size/turn (rising = filling up)[/]",
             "",
         ]
 
