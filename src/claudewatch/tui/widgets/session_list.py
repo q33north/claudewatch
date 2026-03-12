@@ -51,7 +51,10 @@ class SessionList(DataTable):
     """
 
     def on_mount(self) -> None:
-        self.add_columns("Session", "Project", "Model", "Messages", "Tokens", "Duration", "Time")
+        self.add_columns(
+            "Session", "Project", "Model", "Messages",
+            "Tokens", "Cost", "Cache %", "Duration", "Time",
+        )
         self.cursor_type = "row"
         self.zebra_stripes = True
 
@@ -60,10 +63,20 @@ class SessionList(DataTable):
         self.clear()
         summaries = aggregate_sessions(records)
 
+        # Pre-compute per-session costs from raw records
+        session_costs: dict[str, float] = defaultdict(float)
+        for r in records:
+            session_costs[r.session_id] += r.cost_estimate
+
         for s in summaries[:50]:  # cap at 50 rows for performance
             session_label = s.slug or s.session_id[:8]
             model_short = s.model.replace("claude-", "").split("-20")[0]
             tokens = f"{s.total_tokens:,}"
+            cost = f"${session_costs[s.session_id]:.2f}"
+            cache = f"{s.cache_hit_ratio * 100:.0f}%"
             dur = f"{s.duration_minutes:.0f}m" if s.duration_minutes > 0 else "<1m"
             time_str = s.end_time.strftime("%m/%d %H:%M")
-            self.add_row(session_label, s.project, model_short, str(s.message_count), tokens, dur, time_str)
+            self.add_row(
+                session_label, s.project, model_short, str(s.message_count),
+                tokens, cost, cache, dur, time_str,
+            )
