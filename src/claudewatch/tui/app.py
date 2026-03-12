@@ -7,23 +7,17 @@ from pathlib import Path
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Container, Horizontal, Vertical
+from textual.containers import Horizontal, Vertical
 from textual.message import Message
 from textual.widgets import Footer, Header
-
-from collections import defaultdict
-from datetime import datetime, timedelta, timezone
 
 from claudewatch.config import USAGE_JSONL, QUOTA_EVENTS_JSONL
 from claudewatch.models import UsageRecord, QuotaEvent
 from claudewatch.storage.jsonl import read_usage, read_quota_events
-from claudewatch.tui.widgets.timeline import format_tokens
 from claudewatch.tui.widgets.today_usage import TodayUsage
-from claudewatch.tui.widgets.timeline import Timeline
 from claudewatch.tui.widgets.session_list import SessionList
 from claudewatch.tui.widgets.context_health import ContextHealth
 from claudewatch.tui.widgets.context_growth import ContextGrowth
-from claudewatch.tui.widgets.event_log import EventLog
 
 
 class NewUsageEvent(Message):
@@ -55,7 +49,7 @@ class ClaudeWatchApp(App):
         Binding("1", "focus_panel('today')", "Today", show=False),
         Binding("2", "focus_panel('context')", "Context", show=False),
         Binding("3", "focus_panel('sessions')", "Sessions", show=False),
-        Binding("4", "focus_panel('events')", "Events", show=False),
+        Binding("4", "focus_panel('growth')", "Growth", show=False),
     ]
 
     def __init__(self) -> None:
@@ -69,15 +63,12 @@ class ClaudeWatchApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header()
-        with Horizontal(id="dashboard"):
-            with Vertical(id="left-col"):
+        with Vertical(id="dashboard"):
+            with Horizontal(id="top-row"):
                 yield TodayUsage(id="today-usage")
-                yield Timeline(id="timeline")
-                yield SessionList(id="session-list")
-            with Vertical(id="right-col"):
-                yield ContextHealth(id="context-health")
                 yield ContextGrowth(id="context-growth")
-                yield EventLog(id="event-log")
+                yield ContextHealth(id="context-health")
+            yield SessionList(id="session-list")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -89,17 +80,11 @@ class ClaudeWatchApp(App):
         """Load all existing records from storage."""
         records = read_usage()
         events = read_quota_events()
-        log = self.query_one(EventLog)
 
         self.query_one(TodayUsage).update_records(records)
-        self.query_one(Timeline).update_records(records)
         self.query_one(SessionList).update_records(records)
         self.query_one(ContextHealth).update_data(records, events)
         self.query_one(ContextGrowth).update_records(records)
-
-        log.add_event("Loaded", f"{len(records)} usage records")
-        if events:
-            log.add_event("Loaded", f"{len(events)} quota events")
 
         # Seed seen sessions so live events only fire for truly new ones
         self._seen_sessions = set(r.session_id for r in records)
@@ -107,89 +92,11 @@ class ClaudeWatchApp(App):
             last = max(records, key=lambda r: r.timestamp)
             self._last_model = last.model.replace("claude-", "").split("-20")[0]
 
-        # Emit startup summary events
-        self._emit_summary_events(records, events, log)
-
         # Track file offsets for incremental reads
         if USAGE_JSONL.exists():
             self._usage_offset = USAGE_JSONL.stat().st_size
         if QUOTA_EVENTS_JSONL.exists():
             self._quota_offset = QUOTA_EVENTS_JSONL.stat().st_size
-
-    def _emit_summary_events(
-        self,
-        records: list[UsageRecord],
-        events: list[QuotaEvent],
-        log: EventLog,
-    ) -> None:
-        """Emit interesting summary events on load."""
-        today = datetime.now().date()
-        today_recs = [r for r in records if r.timestamp.astimezone().date() == today]
-
-        if not today_recs:
-            return
-
-        # Today's sessions and cost
-        sessions_today = set(r.session_id for r in today_recs)
-        total_cost = sum(r.cost_estimate for r in today_recs)
-        log.add_event("Session", f"{len(sessions_today)} sessions today")
-        log.add_event("Cost", f"${total_cost:.2f} today")
-
-        # Model mix
-        model_tokens: dict[str, int] = defaultdict(int)
-        for r in today_recs:
-            short_model = r.model.replace("claude-", "").split("-20")[0]
-            model_tokens[short_model] += r.total_tokens
-        model_parts = [f"{m}: {format_tokens(t)}" for m, t in sorted(
-            model_tokens.items(), key=lambda x: x[1], reverse=True
-        )]
-        log.add_event("Model", " | ".join(model_parts))
-
-        # Biggest session today
-        by_session: dict[str, int] = defaultdict(int)
-        session_slugs: dict[str, str] = {}
-        for r in today_recs:
-            by_session[r.session_id] += r.total_tokens
-            if r.slug:
-                session_slugs[r.session_id] = r.slug
-        if by_session:
-            top_sid = max(by_session, key=by_session.get)
-            top_label = session_slugs.get(top_sid, top_sid[:8])
-            log.add_event(
-                "Session",
-                f"biggest: {top_label} ({format_tokens(by_session[top_sid])})",
-            )
-
-        # Cache ratio
-        total_read = sum(r.cache_read_input_tokens for r in today_recs)
-        total_create = sum(r.cache_creation_input_tokens for r in today_recs)
-        if total_read + total_create > 0:
-            ratio = total_read / (total_read + total_create)
-            log.add_event("Cache", f"{ratio * 100:.0f}% hit ratio today")
-
-        # 5h window proximity warning
-        if events:
-            from claudewatch.quota.detector import QuotaTracker
-            tracker = QuotaTracker()
-            tracker.events = events
-            ceiling = tracker.estimate_ceiling()
-            usage = tracker.estimate_window_usage(records)
-            input_ceil = ceiling.get("input_ceiling")
-            output_ceil = ceiling.get("output_ceiling")
-            if input_ceil is not None and output_ceil is not None:
-                est_ceiling = input_ceil + output_ceil
-                if est_ceiling > 10_000:
-                    pct = usage["total"] / est_ceiling
-                    if pct >= 0.85:
-                        log.add_event(
-                            "Window",
-                            f"{pct * 100:.0f}% of ceiling - watch it",
-                        )
-                    elif pct >= 0.60:
-                        log.add_event(
-                            "WARN",
-                            f"5h window at {pct * 100:.0f}% of ceiling",
-                        )
 
     @work(thread=True)
     def start_file_watcher(self) -> None:
@@ -269,37 +176,15 @@ class ClaudeWatchApp(App):
         record = event.record
         records = read_usage()
         events = read_quota_events()
-        log = self.query_one(EventLog)
 
         self.query_one(TodayUsage).update_records(records)
-        self.query_one(Timeline).update_records(records)
         self.query_one(SessionList).update_records(records)
         self.query_one(ContextHealth).update_data(records, events)
         self.query_one(ContextGrowth).update_records(records)
 
+        self._seen_sessions.add(record.session_id)
         short_model = record.model.replace("claude-", "").split("-20")[0]
-        log.add_event(
-            "New",
-            f"{short_model} | {format_tokens(record.output_tokens)} out | {record.project}",
-        )
-
-        # Detect new session
-        if record.session_id not in self._seen_sessions:
-            self._seen_sessions.add(record.session_id)
-            label = record.slug or record.session_id[:8]
-            log.add_event("Session", f"new: {label} ({record.project})")
-
-        # Detect model switch
-        if self._last_model and short_model != self._last_model:
-            log.add_event("Model", f"{self._last_model} -> {short_model}")
         self._last_model = short_model
-
-        # Token spike: flag output > 5K as notable
-        if record.output_tokens > 5_000:
-            log.add_event(
-                "Spike",
-                f"{format_tokens(record.output_tokens)} output tokens",
-            )
 
     @on(NewQuotaEvent)
     def handle_new_quota(self, event: NewQuotaEvent) -> None:
@@ -307,9 +192,6 @@ class ClaudeWatchApp(App):
         records = read_usage()
         events = read_quota_events()
         self.query_one(ContextHealth).update_data(records, events)
-        self.query_one(EventLog).add_event(
-            "QUOTA", event.event.event_type, style="bold red"
-        )
 
     def on_unmount(self) -> None:
         """Clean up file watcher on app shutdown."""
@@ -320,7 +202,6 @@ class ClaudeWatchApp(App):
     def action_refresh(self) -> None:
         """Manual refresh of all data."""
         self.load_data()
-        self.query_one(EventLog).add_event("Refresh", "Manual refresh")
 
     def action_focus_panel(self, panel: str) -> None:
         """Focus a specific panel."""
@@ -328,7 +209,7 @@ class ClaudeWatchApp(App):
             "today": "today-usage",
             "context": "context-health",
             "sessions": "session-list",
-            "events": "event-log",
+            "growth": "context-growth",
         }
         widget_id = panel_map.get(panel)
         if widget_id:
