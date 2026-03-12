@@ -127,11 +127,15 @@ def install() -> None:
     HOOKS_DIR.mkdir(parents=True, exist_ok=True)
 
     # Write hook scripts
-    stop_cmd = _write_hook_script(HOOK_SCRIPT, "Stop hook")
+    _write_hook_script(HOOK_SCRIPT, "Stop hook")
     console.print(f"[green]Wrote hook script[/] -> {HOOK_SCRIPT}")
 
-    posttool_cmd = _write_hook_script(POSTTOOL_HOOK_SCRIPT, "PostToolUse hook")
+    _write_hook_script(POSTTOOL_HOOK_SCRIPT, "PostToolUse hook")
     console.print(f"[green]Wrote hook script[/] -> {POSTTOOL_HOOK_SCRIPT}")
+
+    # Use ~ paths so hooks work across machines (linux + mac)
+    stop_cmd = f"~/.claude/hooks/{HOOK_SCRIPT.name}"
+    posttool_cmd = f"~/.claude/hooks/{POSTTOOL_HOOK_SCRIPT.name}"
 
     # Read existing settings and register hooks
     settings = _read_settings()
