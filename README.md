@@ -14,7 +14,7 @@ This tool provides:
 - **Cost estimates** - per-session and daily cost estimates using current API pricing
 - **Context health** - cache efficiency, memory file sizes, autocompact history, quota events
 - **Historical backfill** - imports all past Claude Code session data
-- **Sparkline timeline** - hourly/daily usage trends + per-session context growth curves
+- **Context growth** - per-session context growth sparklines showing token accumulation per turn
 
 ## Install
 
@@ -44,6 +44,11 @@ claudewatch backfill
 # Launch the dashboard
 claudewatch watch
 ```
+
+> **Multi-machine note:** Hook paths in `~/.claude/settings.json` use `~` (tilde) so they
+> resolve correctly if you sync settings across machines (e.g. linux + mac). If you installed
+> with an older version that wrote absolute paths, run `claudewatch uninstall && claudewatch install`
+> to fix it.
 
 ## Commands
 
@@ -152,18 +157,15 @@ Both hooks are designed to be fast (<50ms) and never make any API calls.
 ## Dashboard layout
 
 ```
-+----------------------------+----------------------------+
-|       Today's Usage        |      Context Health        |
-|  tokens by type + model    |  memory sizes, cache ratio |
-|  cost estimate             |  5h window gauge, quota    |
-+----------------------------+----------------------------+
-|       Timeline             |      Context Growth        |
-|  24h / 30d sparklines      |  per-session sparklines    |
-|  burn rate                 |  with y-axis labels        |
-+----------------------------+----------------------------+
-|       Session List         |       Event Log            |
-|  DataTable, sortable       |  live scrolling feed       |
-+----------------------------+----------------------------+
++--------------------+--------------------+--------------------+
+|   Today's Usage    |   Context Growth   |   Context Health   |
+|  tokens by type    |  per-session       |  memory sizes,     |
+|  + model, cost     |  sparklines        |  cache, quota      |
++--------------------+--------------------+--------------------+
+|                     Session List                             |
+|  sortable table: session, project, model, messages,          |
+|  tokens, cost, cache %, duration, time                       |
++--------------------------------------------------------------+
 ```
 
 **Keybindings:** `q` quit, `r` refresh
@@ -176,6 +178,27 @@ Token totals for the day, broken down by type (input, output, cache read, cache 
 and by model. The API cost estimate uses current Anthropic pricing and reflects what
 you'd pay if you were on the API directly: not what you pay for a Claude Code
 subscription, which is flat-rate.
+
+### Context Growth (top center)
+
+Per-session sparklines showing the total tokens sent to the API on each turn
+(input + cache_read + cache_create). Each turn, Claude Code sends the full
+conversation prefix to the API. Most of this is typically cache_read (reused
+cheaply from prior turns), but the total still reflects the growing size of
+your conversation. A steadily rising line is normal. When the underlying
+context window approaches 200K tokens, Claude Code auto-compacts.
+
+Note: this is "tokens billed per turn," not "context window fill level."
+A turn showing 160K doesn't mean 160K of context is used. It means 160K
+tokens were sent to the API, most of which were cache reads. Claude Code's
+`/context` command shows actual window fill, but that data isn't available
+to external tools.
+
+Each line represents one of the most recent sessions (up to 5). The y-axis
+runs from 0 to the session's peak value. Sessions with only a single turn
+are excluded. Sessions are labeled by their slug (if available), a short
+human-readable name that Claude Code auto-generates for each session (like
+"bright-noodling-karp"), or a truncated session ID.
 
 ### Context Health (top right)
 
@@ -216,43 +239,6 @@ dramatically reduces cost.
 > claude.ai (the web/desktop chat). The "X% used" meter in claude.ai is a subscription
 > allocation gauge that's tracked server-side and not exposed to local tooling.
 
-### Timeline (middle left)
-
-Sparkline charts showing usage over time. Each character is one time bucket (hour or day),
-and bar height is proportional to the peak within that section. 
-
-Input and output tokens are priced 
-differently and behave differently: input grows predictably as your context accumulates, while output 
-depends on what you're asking Claude to do. A spike in output tokens usually means Claude is generating 
-large code blocks or verbose explanations, which is the most expensive token type. Tracking them separately 
-helps you see whether cost is driven by long conversations (input) or heavy generation (output). 
-
-- **24h** - rolling hourly buckets with hour-of-day labels on the x-axis. Green = input
-  tokens (includes cache reads), yellow = output tokens.
-- **30d** - daily buckets over the last month with date labels.
-- **Burn rate** - tokens per hour averaged over the last 3 hours of activity.
-
-### Context Growth (middle right)
-
-Per-session sparklines showing the total tokens sent to the API on each turn
-(input + cache_read + cache_create). Each turn, Claude Code sends the full
-conversation prefix to the API. Most of this is typically cache_read (reused
-cheaply from prior turns), but the total still reflects the growing size of
-your conversation. A steadily rising line is normal. When the underlying
-context window approaches 200K tokens, Claude Code auto-compacts.
-
-Note: this is "tokens billed per turn," not "context window fill level."
-A turn showing 160K doesn't mean 160K of context is used. It means 160K
-tokens were sent to the API, most of which were cache reads. Claude Code's
-`/context` command shows actual window fill, but that data isn't available
-to external tools.
-
-Each line represents one of the most recent sessions (up to 5). The y-axis
-runs from 0 to the session's peak value. Sessions with only a single turn
-are excluded. Sessions are labeled by their slug (if available), a short
-human-readable name that Claude Code auto-generates for each session (like
-"bright-noodling-karp"), or a truncated session ID.
-
 ### Reading Context Growth and Cache Ratio together
 
 The Context Growth sparkline shows how many tokens are sent per turn. The
@@ -272,18 +258,11 @@ Things that hurt your cache ratio (and your wallet):
 - First turn of a new session (nothing cached yet)
 - Auto-compaction (conversation gets rewritten)
 
-### Session List (bottom left)
+### Session List (bottom, full width)
 
-A table of all sessions, most recent first. Shows the session slug or a truncated session UUID if no 
+A table of all sessions, most recent first. Shows the session slug or a truncated session UUID if no
 slug is available.
-Columns: session name, project, model, message count, total tokens, duration, and time.
-
-### Event Log (bottom right)
-
-Live feed of events with color-coded tags. On startup, shows a summary of today's sessions,
-cost, model mix, biggest session, cache ratio, and window proximity warnings. During use,
-logs new usage records, session switches, model changes, output token spikes (> 5K), quota
-hits, and manual refreshes.
+Columns: session name, project, model, message count, total tokens, cost, cache %, duration, and time.
 
 
 ## License

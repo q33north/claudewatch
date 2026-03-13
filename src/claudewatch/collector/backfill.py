@@ -16,6 +16,10 @@ from claudewatch.storage.jsonl import append_usage, read_usage
 def find_session_files(since: datetime | None = None) -> list[tuple[Path, str]]:
     """Find all session JSONL files under ~/.claude/projects/.
 
+    Discovers both parent session transcripts ({uuid}.jsonl) and subagent
+    transcripts ({uuid}/subagents/agent-*.jsonl). Subagent files contain
+    their own token usage that is NOT included in the parent transcript.
+
     Returns list of (path, project_name) tuples.
     """
     if not PROJECTS_DIR.exists():
@@ -26,19 +30,34 @@ def find_session_files(since: datetime | None = None) -> list[tuple[Path, str]]:
         if not project_dir.is_dir():
             continue
         project_name = decode_project_dir(project_dir.name)
+
+        # Parent session transcripts
         for jsonl_file in project_dir.glob("*.jsonl"):
             if since and jsonl_file.stat().st_mtime < since.timestamp():
                 continue
             files.append((jsonl_file, project_name))
+
+        # Subagent transcripts (spawned by the Agent tool)
+        for jsonl_file in project_dir.glob("*/subagents/agent-*.jsonl"):
+            if since and jsonl_file.stat().st_mtime < since.timestamp():
+                continue
+            files.append((jsonl_file, project_name))
+
     return files
 
 
 def extract_records_from_session(
     path: Path, project: str
 ) -> list[UsageRecord]:
-    """Extract all assistant usage records from a single session JSONL file."""
+    """Extract all assistant usage records from a session or subagent JSONL file.
+
+    Works identically for parent transcripts and subagent transcripts since
+    the JSONL format is the same. Uses sessionId from each entry (falling back
+    to the filename stem) so subagent records are correctly attributed to their
+    parent session.
+    """
     records = []
-    session_id = path.stem
+    fallback_session_id = path.stem
 
     with open(path, "rb") as f:
         for raw_line in f:
@@ -67,7 +86,7 @@ def extract_records_from_session(
             records.append(
                 UsageRecord(
                     timestamp=ts,
-                    session_id=session_id,
+                    session_id=entry.get("sessionId", fallback_session_id),
                     model=msg.get("model", "unknown"),
                     input_tokens=usage.get("input_tokens", 0),
                     output_tokens=usage.get("output_tokens", 0),
