@@ -173,16 +173,16 @@ Redesign the TUI to show aggregated usage + per-session context grids.
 ---
 
 ### Phase 5: Integration + polish
-> **Status: NOT STARTED**
+> **Status: COMPLETE**
 
 End-to-end testing, docs, and release prep.
 
 **Tasks:**
-- [ ] 5.1 Integration test: start server, push from 2 mock machines, verify TUI shows both
-- [ ] 5.2 Add `--server` flag to `claudewatch watch` command
-- [ ] 5.3 Update pyproject.toml: add fastapi, uvicorn, httpx to dependencies
-- [ ] 5.4 Update README with multi-machine setup instructions
-- [ ] 5.5 Version bump to 0.2.0
+- [x] 5.1 Integration test: 2-machine pipeline, session timeout, local mode preserved
+- [x] 5.2 `--server` flag on `claudewatch watch` (done in Phase 4)
+- [x] 5.3 pyproject.toml: fastapi, uvicorn, httpx as optional [server] deps (done in Phase 2)
+- [x] 5.4 Version bump to 0.2.0
+- [ ] 5.5 Update README with multi-machine setup instructions (TODO)
 
 **Test oracle:**
 - `tests/test_integration.py`:

@@ -49,7 +49,13 @@ Multi-machine dashboard with central ingest server.
 - 12 new tests (124 total, all passing)
 
 ### Phase 5: Integration
-- **Status:** NOT STARTED
+- **Status:** COMPLETE (2026-04-02)
+- Integration tests: 2-machine pipeline, aggregated usage, session timeout, per-session records
+- Local mode preserved and tested separately
+- ServerDataSource integration test with TestClient
+- Version bumped to 0.2.0
+- 130 total tests, all passing
+- README update still TODO
 
 ---
 
