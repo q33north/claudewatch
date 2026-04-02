@@ -156,6 +156,10 @@ def run_hook() -> None:
 
     append_usage(record)
 
+    # Push to server if configured (fire-and-forget)
+    from claudewatch.collector.push import maybe_push
+    maybe_push(record)
+
     # Check for quota patterns (only worth doing on Stop, but harmless either way)
     quota_type = check_quota_patterns(entry)
     if quota_type:

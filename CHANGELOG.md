@@ -29,7 +29,12 @@ Multi-machine dashboard with central ingest server.
 - 17 tests covering auth, CRUD, multi-machine tagging, edge cases
 
 ### Phase 3: Hook Push
-- **Status:** NOT STARTED
+- **Status:** COMPLETE (2026-04-02)
+- Created `collector/push.py`: fire-and-forget HTTP push with 2s timeout
+- `maybe_push()` called from hook after local JSONL write
+- Config loaded from `~/.claude/claudewatch/server.json` (shared with serve/connect)
+- All errors silently swallowed - local JSONL is source of truth
+- 10 tests: push success, auth header, timeout behavior, server down, machine_id, config loading, hook coexistence with memsearch
 
 ### Phase 4: TUI Refactor
 - **Status:** NOT STARTED

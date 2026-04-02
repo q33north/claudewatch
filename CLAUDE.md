@@ -117,18 +117,19 @@ HTTP server that accepts usage records and serves them to the TUI.
 ---
 
 ### Phase 3: Hook modification - push to server
-> **Status: NOT STARTED**
+> **Status: COMPLETE**
 
 Modify the existing hook to optionally POST records to a remote server.
 
 **Tasks:**
-- [ ] 3.1 Add `server_url: str | None` to claudewatch config (stored in `~/.claude/claudewatch/config.json`)
-- [ ] 3.2 Create `src/claudewatch/collector/push.py`:
-  - `push_record(record: UsageRecord, server_url: str)` - POST to server (fire-and-forget, non-blocking)
-  - Uses httpx with short timeout (2s), fails silently (don't block Claude Code)
-- [ ] 3.3 Modify `collector/hook.py` to call `push_record()` after writing local JSONL (if server_url configured)
-- [ ] 3.4 Add `claudewatch install --server <url>` flag to configure the server URL
-- [ ] 3.5 Add `claudewatch connect <url>` command to set server URL without reinstalling hooks
+- [x] 3.1 Server config stored in `~/.claude/claudewatch/server.json` (shared with serve/connect)
+- [x] 3.2 Create `src/claudewatch/collector/push.py`:
+  - `push_record()` - POST to server with 2s timeout, fails silently
+  - `maybe_push()` - loads config, pushes if server configured
+  - `_load_push_config()` - reads server.json
+- [x] 3.3 Modify `collector/hook.py` to call `maybe_push()` after writing local JSONL
+- [x] 3.4 `claudewatch connect` command (Phase 2) handles server URL config
+- [x] 3.5 Hook coexistence tests: install/uninstall preserves other hooks (memsearch etc)
 
 **Test oracle (write these FIRST):**
 - `tests/test_push.py`:
