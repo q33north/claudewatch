@@ -17,6 +17,7 @@ from claudewatch.storage.jsonl import read_usage, read_quota_events
 from claudewatch.tui.widgets.today_usage import TodayUsage
 from claudewatch.tui.widgets.session_list import SessionList
 from claudewatch.tui.widgets.context_health import ContextHealth
+from claudewatch.tui.widgets.context_grid import ContextGrid
 from claudewatch.tui.widgets.context_growth import ContextGrowth
 
 
@@ -49,7 +50,7 @@ class ClaudeWatchApp(App):
         Binding("1", "focus_panel('today')", "Today", show=False),
         Binding("2", "focus_panel('context')", "Context", show=False),
         Binding("3", "focus_panel('sessions')", "Sessions", show=False),
-        Binding("4", "focus_panel('growth')", "Growth", show=False),
+        Binding("4", "focus_panel('grid')", "Grid", show=False),
     ]
 
     def __init__(self) -> None:
@@ -66,7 +67,7 @@ class ClaudeWatchApp(App):
         with Vertical(id="dashboard"):
             with Horizontal(id="top-row"):
                 yield TodayUsage(id="today-usage")
-                yield ContextGrowth(id="context-growth")
+                yield ContextGrid(id="context-grid")
                 yield ContextHealth(id="context-health")
             yield SessionList(id="session-list")
         yield Footer()
@@ -84,7 +85,7 @@ class ClaudeWatchApp(App):
         self.query_one(TodayUsage).update_records(records)
         self.query_one(SessionList).update_records(records)
         self.query_one(ContextHealth).update_data(records, events)
-        self.query_one(ContextGrowth).update_records(records)
+        self.query_one(ContextGrid).update_records(records)
 
         # Seed seen sessions so live events only fire for truly new ones
         self._seen_sessions = set(r.session_id for r in records)
@@ -180,7 +181,7 @@ class ClaudeWatchApp(App):
         self.query_one(TodayUsage).update_records(records)
         self.query_one(SessionList).update_records(records)
         self.query_one(ContextHealth).update_data(records, events)
-        self.query_one(ContextGrowth).update_records(records)
+        self.query_one(ContextGrid).update_records(records)
 
         self._seen_sessions.add(record.session_id)
         short_model = record.model.replace("claude-", "").split("-20")[0]
@@ -209,7 +210,7 @@ class ClaudeWatchApp(App):
             "today": "today-usage",
             "context": "context-health",
             "sessions": "session-list",
-            "growth": "context-growth",
+            "grid": "context-grid",
         }
         widget_id = panel_map.get(panel)
         if widget_id:

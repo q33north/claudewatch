@@ -18,7 +18,7 @@
     border-right: solid $primary;
 }
 
-#context-growth {
+#context-grid {
     width: 1fr;
     height: 1fr;
     padding: 1 2;
