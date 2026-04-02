@@ -7,6 +7,12 @@ from datetime import datetime
 from pydantic import BaseModel, Field
 
 
+def _default_machine_id() -> str:
+    """Return a stable machine identifier (hostname)."""
+    import socket
+    return socket.gethostname()
+
+
 class UsageRecord(BaseModel):
     """Single usage record extracted from a Claude Code assistant message."""
 
@@ -22,6 +28,7 @@ class UsageRecord(BaseModel):
     speed: str = "standard"
     user_id: str = "default"
     slug: str = ""
+    machine_id: str = Field(default_factory=_default_machine_id)
 
     @property
     def total_tokens(self) -> int:
@@ -63,6 +70,7 @@ class QuotaEvent(BaseModel):
     cumulative_output: int = 0
     message: str = ""
     user_id: str = "default"
+    machine_id: str = Field(default_factory=_default_machine_id)
 
 
 class SessionSummary(BaseModel):
