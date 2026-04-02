@@ -37,7 +37,16 @@ Multi-machine dashboard with central ingest server.
 - 10 tests: push success, auth header, timeout behavior, server down, machine_id, config loading, hook coexistence with memsearch
 
 ### Phase 4: TUI Refactor
-- **Status:** NOT STARTED
+- **Status:** COMPLETE (2026-04-02)
+- 2x2 grid layout: TodayUsage + 3 ContextGrid slots
+- Grids auto-discover active sessions (last 10 min), cap at 3, ordered by recency
+- ContextGrid now supports targeting a specific session via set_session()
+- Shows machine_id in grid header (e.g. "opus @ laptop")
+- DataSource protocol: LocalDataSource (JSONL) and ServerDataSource (HTTP API)
+- `claudewatch watch --server <url>` polls server every 3s
+- Auto-detects saved server connection from previous `claudewatch connect`
+- Removed ContextHealth and SessionList from main layout (replaced by grids)
+- 12 new tests (124 total, all passing)
 
 ### Phase 5: Integration
 - **Status:** NOT STARTED

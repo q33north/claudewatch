@@ -55,12 +55,32 @@ console = Console()
 
 
 @app.command()
-def watch() -> None:
+def watch(
+    server: Optional[str] = typer.Option(
+        None, help="Server URL to connect to (e.g. http://mini.local:8420)"
+    ),
+) -> None:
     """Launch the live TUI dashboard."""
     from claudewatch.tui.app import ClaudeWatchApp
 
     ensure_dirs()
-    app_instance = ClaudeWatchApp()
+
+    server_url = server
+    auth_token = None
+
+    # If no --server flag, check if we have a saved connection
+    if not server_url:
+        config = _load_server_config()
+        if config.get("server_url"):
+            server_url = config["server_url"]
+            auth_token = config.get("auth_token")
+
+    # If --server was explicit, load token from config
+    if server_url and not auth_token:
+        config = _load_server_config()
+        auth_token = config.get("auth_token")
+
+    app_instance = ClaudeWatchApp(server_url=server_url, auth_token=auth_token)
     app_instance.run()
 
 

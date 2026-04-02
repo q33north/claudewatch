@@ -68,17 +68,34 @@ def _latest_session_records(records: list[UsageRecord]) -> tuple[list[UsageRecor
 
 
 class ContextGrid(Static):
-    """Claude Code-style grid showing token usage as colored unicode symbols."""
+    """Claude Code-style grid showing token usage as colored unicode symbols.
+
+    Can target a specific session (via session_id) or auto-detect the latest.
+    """
 
     _record_count = reactive(0)
 
-    def __init__(self, **kwargs) -> None:
+    def __init__(self, session_id: str | None = None, **kwargs) -> None:
         super().__init__(markup=False, **kwargs)
         self._records: list[UsageRecord] = []
+        self._session_id = session_id
+        self._session_meta: dict = {}  # machine_id, project, etc.
 
     def update_records(self, records: list[UsageRecord]) -> None:
         self._records = records
         self._record_count = len(records)
+
+    def set_session(self, session_id: str, meta: dict | None = None) -> None:
+        """Target a specific session for this grid."""
+        self._session_id = session_id
+        self._session_meta = meta or {}
+
+    def clear_session(self) -> None:
+        """Clear the targeted session (shows empty state)."""
+        self._session_id = None
+        self._session_meta = {}
+        self._records = []
+        self._record_count = 0
 
     def _build_grid(
         self, cols: int = 20, rows: int = 10
@@ -87,7 +104,17 @@ class ContextGrid(Static):
 
         Returns (grid_rows, legend_entries, session_label, model_name, context_window).
         """
-        recs, label = _latest_session_records(self._records)
+        if self._session_id:
+            recs = sorted(
+                [r for r in self._records if r.session_id == self._session_id],
+                key=lambda r: r.timestamp,
+            )
+            label = self._session_meta.get("slug") or (
+                next((r.slug for r in recs if r.slug), self._session_id[:8])
+                if recs else self._session_id[:8]
+            )
+        else:
+            recs, label = _latest_session_records(self._records)
         if not recs:
             return [], [], "", "", 0
 
@@ -164,8 +191,11 @@ class ContextGrid(Static):
             text.append("no session data yet", style="dim")
             return text
 
-        text.append(f"{model_short} ", style="dim")
-        text.append(f"· {format_tokens(ctx_window)} window\n\n", style="dim")
+        machine = self._session_meta.get("machine_id", "")
+        text.append(f"{model_short}", style="dim")
+        if machine:
+            text.append(f" @ {machine}", style="dim")
+        text.append(f" · {format_tokens(ctx_window)} window\n\n", style="dim")
 
         # Render grid
         for row in grid_rows:

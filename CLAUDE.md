@@ -145,24 +145,20 @@ Modify the existing hook to optionally POST records to a remote server.
 ---
 
 ### Phase 4: TUI refactor - 4-panel grid layout
-> **Status: NOT STARTED**
+> **Status: COMPLETE**
 
 Redesign the TUI to show aggregated usage + per-session context grids.
 
 **Tasks:**
-- [ ] 4.1 Create `src/claudewatch/tui/widgets/session_grid.py` - container that manages N context grids:
-  - Discovers active sessions from server or local data
-  - Renders up to 3 ContextGrid widgets dynamically (4th panel = TodayUsage)
-  - Handles the case of 0, 1, 2, 3, or 4+ active sessions gracefully
-- [ ] 4.2 Refactor `app.py` compose() to use 2x2 grid layout:
-  - Top-left: TodayUsage (aggregated across all machines)
-  - Top-right, bottom-left, bottom-right: ContextGrid per active session
-  - If <3 sessions: show placeholder or expand existing grids
-- [ ] 4.3 Update `dashboard.tcss` for 2x2 grid layout (equal-sized panels)
-- [ ] 4.4 Add data source abstraction: `DataSource` protocol with `LocalDataSource` and `ServerDataSource` implementations
-  - `LocalDataSource`: reads JSONL (existing behavior)
-  - `ServerDataSource`: reads from server API via httpx
-- [ ] 4.5 Wire TUI to use `ServerDataSource` when `--server` flag is passed to `claudewatch watch`
+- [x] 4.1 Create `src/claudewatch/tui/widgets/session_grid.py`:
+  - `discover_active_sessions()` finds recent sessions, caps at 3, ordered by recency
+- [x] 4.2 Refactor `app.py` to 2x2 grid layout:
+  - Top-left: TodayUsage, Top-right: Grid 1, Bottom-left: Grid 2, Bottom-right: Grid 3
+  - Grids auto-assigned to active sessions, cleared when session goes stale
+- [x] 4.3 Update `dashboard.tcss` for 2x2 equal-size panels with borders
+- [x] 4.4 `DataSource` protocol + `LocalDataSource` + `ServerDataSource` in `tui/data_source.py`
+- [x] 4.5 `claudewatch watch --server <url>` uses ServerDataSource with 3s polling
+- [x] 4.6 ContextGrid enhanced: `set_session()`, `clear_session()`, machine_id display
 
 **Test oracle (write these FIRST):**
 - `tests/test_session_grid.py`:
