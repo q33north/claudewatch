@@ -18,7 +18,15 @@ Multi-machine dashboard with central ingest server.
 - Existing 69 tests unaffected by model changes (machine_id has default_factory)
 
 ### Phase 2: Server (FastAPI)
-- **Status:** NOT STARTED
+- **Status:** COMPLETE (2026-04-02)
+- Created `server/app.py` with `create_app()` factory pattern
+- Endpoints: POST /api/usage, POST /api/quota, GET /api/sessions/active, GET /api/usage/today, GET /api/usage/session/{id}, GET /api/health
+- Bearer token auth on all endpoints except health check
+- `claudewatch serve` command: auto-generates token, defaults to localhost:8420
+- `claudewatch connect <url> --token <token>`: one-time client setup, saves to server.json, does health check
+- Default host is 127.0.0.1 (localhost only) for safety; --host 0.0.0.0 to expose
+- fastapi, uvicorn, httpx added as optional [server] deps in pyproject.toml
+- 17 tests covering auth, CRUD, multi-machine tagging, edge cases
 
 ### Phase 3: Hook Push
 - **Status:** NOT STARTED

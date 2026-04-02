@@ -1,4 +1,4 @@
-"""CLI interface for claudewatch. Commands: watch, backfill, install, summary."""
+"""CLI interface for claudewatch. Commands: watch, backfill, install, serve, connect, summary."""
 
 from __future__ import annotations
 
@@ -15,9 +15,12 @@ from rich.table import Table
 from claudewatch import __version__
 from claudewatch.config import (
     CLAUDEWATCH_DIR,
+    DEFAULT_PORT,
     HOOKS_DIR,
     HOOK_SCRIPT,
     POSTTOOL_HOOK_SCRIPT,
+    SERVER_CONFIG,
+    SERVER_DB,
     SETTINGS_JSON,
     USAGE_JSONL,
     ensure_dirs,
@@ -210,6 +213,99 @@ def uninstall() -> None:
             console.print(f"[green]Deleted[/] {script}")
 
     console.print("\n[dim]Usage data at ~/.claude/claudewatch/ was not removed.[/]")
+
+
+def _load_server_config() -> dict:
+    """Load server config from disk."""
+    if SERVER_CONFIG.exists():
+        return json.loads(SERVER_CONFIG.read_text())
+    return {}
+
+
+def _save_server_config(config: dict) -> None:
+    """Save server config to disk."""
+    ensure_dirs()
+    SERVER_CONFIG.write_text(json.dumps(config, indent=2) + "\n")
+
+
+@app.command()
+def serve(
+    host: str = typer.Option("127.0.0.1", help="Bind address (use 0.0.0.0 for network access)"),
+    port: int = typer.Option(DEFAULT_PORT, help="Port to listen on"),
+    db: Optional[str] = typer.Option(None, help="SQLite database path"),
+) -> None:
+    """Start the claudewatch ingest server."""
+    import secrets
+
+    try:
+        import uvicorn
+    except ImportError:
+        console.print("[red]Server dependencies not installed.[/]")
+        console.print("Install with: [bold]pip install claudewatch\\[server][/]")
+        raise typer.Exit(1)
+
+    ensure_dirs()
+    db_path = Path(db) if db else SERVER_DB
+
+    # Load or generate auth token
+    config = _load_server_config()
+    if "auth_token" not in config:
+        config["auth_token"] = secrets.token_urlsafe(32)
+        _save_server_config(config)
+        console.print(f"\n[bold green]Generated new auth token:[/]")
+        console.print(f"  {config['auth_token']}")
+        console.print(f"\n  Save this! Clients need it to connect.\n")
+    else:
+        console.print(f"\n[dim]Using existing auth token from {SERVER_CONFIG}[/]")
+
+    from claudewatch.server.app import create_app
+
+    fastapi_app = create_app(db_path=db_path, auth_token=config["auth_token"])
+
+    console.print(f"[bold]claudewatch server[/]")
+    console.print(f"  Database: {db_path}")
+    console.print(f"  Listening: http://{host}:{port}")
+    if host == "127.0.0.1":
+        console.print(f"  [dim]Localhost only. Use --host 0.0.0.0 for network access.[/]")
+    console.print(f"\n  Data is stored locally. Nothing leaves this machine.\n")
+
+    uvicorn.run(fastapi_app, host=host, port=port, log_level="info")
+
+
+@app.command()
+def connect(
+    server_url: str = typer.Argument(help="Server URL, e.g. http://mini.local:8420"),
+    token: str = typer.Option(..., help="Auth token from 'claudewatch serve'"),
+) -> None:
+    """Connect this machine to a claudewatch server (one-time setup)."""
+    ensure_dirs()
+
+    # Normalize URL
+    url = server_url.rstrip("/")
+    if not url.startswith("http"):
+        url = f"http://{url}"
+
+    # Save to config
+    config = _load_server_config()
+    config["server_url"] = url
+    config["auth_token"] = token
+    _save_server_config(config)
+
+    console.print(f"[green]Connected![/] Server: {url}")
+    console.print(f"Config saved to {SERVER_CONFIG}")
+    console.print(f"\n[dim]Hooks will now push data to the server automatically.[/]")
+
+    # Quick health check
+    try:
+        import httpx
+
+        resp = httpx.get(f"{url}/api/health", timeout=3)
+        if resp.status_code == 200:
+            console.print(f"[green]Server is reachable.[/]")
+        else:
+            console.print(f"[yellow]Server responded with status {resp.status_code}[/]")
+    except Exception:
+        console.print(f"[yellow]Could not reach server (it may not be running yet).[/]")
 
 
 @app.command()

@@ -57,6 +57,11 @@ QUOTA_PATTERNS: list[dict[str, str]] = [
 CHARS_PER_TOKEN = 4
 GLOBAL_CLAUDE_MD = CLAUDE_DIR / "CLAUDE.md"
 
+# Server config
+SERVER_CONFIG = CLAUDEWATCH_DIR / "server.json"
+SERVER_DB = CLAUDEWATCH_DIR / "server.db"
+DEFAULT_PORT = 8420
+
 # Tail-read settings
 TAIL_CHUNK_SIZE = 8192  # 8KB chunks for backwards reading
 

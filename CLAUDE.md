@@ -81,21 +81,25 @@ for multi-machine support since SQLite handles concurrent writes.
 ---
 
 ### Phase 2: Server - FastAPI ingest + query API
-> **Status: NOT STARTED**
+> **Status: COMPLETE**
 
 HTTP server that accepts usage records and serves them to the TUI.
 
 **Tasks:**
-- [ ] 2.1 Create `src/claudewatch/server/__init__.py` and `src/claudewatch/server/app.py`:
+- [x] 2.1 Create `src/claudewatch/server/__init__.py` and `src/claudewatch/server/app.py`:
   - `POST /api/usage` - accepts UsageRecord JSON, stores in SQLite
   - `POST /api/quota` - accepts QuotaEvent JSON
   - `GET /api/sessions/active` - returns active sessions (last 10 min)
   - `GET /api/usage/today` - returns today's aggregated usage
   - `GET /api/usage/session/{session_id}` - returns records for a session
-  - `GET /api/health` - server health check
-- [ ] 2.2 Add `claudewatch serve` CLI command (typer):
-  - `--host` (default 0.0.0.0), `--port` (default 8420), `--db` (default ~/.claude/claudewatch/server.db)
-- [ ] 2.3 Add request models: `UsageRecordCreate` (UsageRecord + machine_id)
+  - `GET /api/health` - server health check (no auth required)
+- [x] 2.2 Add `claudewatch serve` CLI command (typer):
+  - `--host` (default 127.0.0.1 for safety), `--port` (default 8420), `--db`
+  - Auto-generates and persists auth token on first run
+- [x] 2.3 Add `claudewatch connect <url> --token <token>` command
+- [x] 2.4 Add request models: `UsageRecordCreate`, `QuotaEventCreate`
+- [x] 2.5 Bearer token auth on all endpoints except /api/health
+- [x] 2.6 Add fastapi, uvicorn, httpx to optional deps [server]
 
 **Test oracle (write these FIRST):**
 - `tests/test_server.py`:
